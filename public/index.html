@@ -41,8 +41,22 @@
     color: #fff; font-size: 18px; font-weight: 800;
     flex-shrink: 0;
   }
+  .header-info { flex: 1; }
   .header-title { font-size: 15px; font-weight: 700; color: #0f172a; }
   .header-sub { font-size: 11px; color: #64748b; }
+  .reset-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    font-size: 11px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s;
+  }
+  .reset-btn:hover { background: #f1f5f9; color: #ef4444; }
 
   /* Chat */
   .chat-area {
@@ -213,10 +227,11 @@
 <div id="app">
   <div class="header">
     <div class="header-icon">補</div>
-    <div>
+    <div class="header-info">
       <div class="header-title">補助金 無料診断</div>
       <div class="header-sub">最短1分で受給額がわかる無料診断</div>
     </div>
+    <button class="reset-btn" id="resetBtn">リセット</button>
   </div>
 
   <div class="chat-area" id="chatArea"></div>
@@ -716,8 +731,27 @@ const INITIAL_MESSAGE = {
   content: "友だち登録ありがとうございます！\n補助金・助成金の無料診断サービスです。\n\nまず、どちらの診断をご希望ですか？\n\n① サクッと簡易診断（3分）\n　→ 基本的な情報で、受給可能額をざっくり診断します\n\n② じっくり詳細診断（5分）\n　→ しっかりヒアリングして、超正確なシミュレーションをお出しします\n\n①か②の番号でお答えください！"
 };
 
+const STORAGE_KEY = 'chatbot_messages';
+
+function loadMessages() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [INITIAL_MESSAGE];
+}
+
+function saveMessages() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  } catch (e) {}
+}
+
 // State
-let messages = [INITIAL_MESSAGE];
+let messages = loadMessages();
 let loading = false;
 let isComposing = false;
 
@@ -944,6 +978,7 @@ async function sendMessage() {
 
   const userMsg = { role: 'user', content: text };
   messages.push(userMsg);
+  saveMessages();
   inputField.value = '';
   loading = true;
   inputField.disabled = true;
@@ -970,6 +1005,11 @@ async function sendMessage() {
       : 'すみません、エラーが発生しました。もう一度お試しください。';
 
     messages.push({ role: 'assistant', content: responseText });
+
+    const sim = parseSimulation(responseText);
+    if (sim) {
+      sendConversationLog(sim);
+    }
   } catch (err) {
     messages.push({
       role: 'assistant',
@@ -980,8 +1020,47 @@ async function sendMessage() {
   loading = false;
   inputField.disabled = false;
   inputField.focus();
+  saveMessages();
   updateSendBtn();
   renderMessages();
+}
+
+function extractInfoFromConversation() {
+  const allText = messages.map(m => m.content).join('\n');
+  const userTexts = messages.filter(m => m.role === 'user').map(m => m.content);
+
+  function find(patterns) {
+    for (const msg of messages) {
+      if (msg.role !== 'user') continue;
+      for (const p of patterns) {
+        if (typeof p === 'string' && msg.content.includes(p)) return msg.content;
+      }
+    }
+    return '';
+  }
+
+  const isSimple = userTexts.some(t => /1|簡易|サクッ/.test(t));
+  const isDetailed = userTexts.some(t => /2|詳細|じっくり/.test(t));
+
+  return {
+    mode: isDetailed ? '詳細' : '簡易',
+    fullConversation: messages.map(m => ({ role: m.role, content: m.content })),
+  };
+}
+
+async function sendConversationLog(simData) {
+  try {
+    const info = extractInfoFromConversation();
+    await fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: info.mode,
+        simulationResults: simData,
+        fullConversation: info.fullConversation,
+      }),
+    });
+  } catch (e) {}
 }
 
 // Events
@@ -998,6 +1077,14 @@ inputField.addEventListener('keydown', (e) => {
 });
 
 sendBtn.addEventListener('click', sendMessage);
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('会話をリセットしますか？')) return;
+  messages = [INITIAL_MESSAGE];
+  saveMessages();
+  renderMessages();
+  inputField.focus();
+});
 
 // Init
 renderMessages();
