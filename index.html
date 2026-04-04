@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>補助金 無料診断</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Noto Sans JP', -apple-system, sans-serif;
+    background: #f1f5f9;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    max-width: 430px;
+    margin: 0 auto;
+    background: #f1f5f9;
+  }
+
+  /* Header */
+  .header {
+    background: #fff;
+    padding: 14px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .header-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .header-title { font-size: 15px; font-weight: 700; color: #0f172a; }
+  .header-sub { font-size: 11px; color: #64748b; }
+
+  /* Chat */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .msg-row {
+    display: flex;
+    animation: fadeIn 0.3s ease-out;
+  }
+  .msg-row.user { justify-content: flex-end; }
+  .msg-row.assistant { justify-content: flex-start; }
+  .msg-wrapper { max-width: 82%; }
+
+  .msg-bubble {
+    padding: 11px 15px;
+    font-size: 14px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    word-break: break-word;
+  }
+  .msg-bubble.user {
+    background: #2563eb;
+    color: #fff;
+    border-radius: 16px 4px 16px 16px;
+  }
+  .msg-bubble.assistant {
+    background: #fff;
+    color: #1e293b;
+    border-radius: 4px 16px 16px 16px;
+  }
+
+  /* Typing */
+  .typing {
+    display: flex; align-items: center; gap: 4px;
+    padding: 12px 16px;
+    background: #fff;
+    border-radius: 4px 16px 16px 16px;
+    max-width: 80px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .typing-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #94a3b8;
+    animation: bounce 1.2s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+  /* Simulation Card */
+  .sim-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 16px;
+    padding: 24px 20px;
+    margin: 8px 0;
+    color: #f8fafc;
+    max-width: 340px;
+  }
+  .sim-label {
+    font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; color: #94a3b8;
+    margin-bottom: 16px;
+  }
+  .sim-item {
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 16px 14px;
+    margin-bottom: 12px;
+  }
+  .sim-item:last-child { margin-bottom: 0; }
+  .sim-name { font-size: 14px; font-weight: 700; color: #60a5fa; margin-bottom: 10px; }
+  .sim-est-label { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+  .sim-est-amount { font-size: 28px; font-weight: 800; color: #f8fafc; margin-bottom: 8px; letter-spacing: -1px; }
+  .sim-est-amount span { font-size: 14px; font-weight: 400; }
+  .sim-row {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: #94a3b8; margin-bottom: 4px;
+  }
+  .sim-row-val { color: #e2e8f0; }
+  .sim-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 10px 0; }
+  .sim-fee-detail {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: #64748b; margin-bottom: 8px;
+  }
+  .sim-remaining {
+    background: rgba(52, 211, 153, 0.1);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .sim-remaining-label { font-size: 11px; color: #6ee7b7; margin-bottom: 2px; }
+  .sim-remaining-amount { font-size: 24px; font-weight: 800; color: #34d399; letter-spacing: -1px; }
+  .sim-remaining-amount span { font-size: 13px; font-weight: 400; }
+  .sim-reason { font-size: 11px; color: #64748b; margin-top: 8px; line-height: 1.5; }
+  .sim-message { font-size: 12px; color: #94a3b8; margin-top: 14px; line-height: 1.6; }
+
+  /* Zoom CTA */
+  .zoom-cta {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border-radius: 14px;
+    padding: 20px 18px;
+    margin: 8px 0;
+    max-width: 340px;
+    text-align: center;
+  }
+  .zoom-cta-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .zoom-cta-desc { font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 14px; line-height: 1.6; }
+  .zoom-cta-btn {
+    background: #fff; color: #1d4ed8; border: none;
+    border-radius: 10px; padding: 12px 32px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    transition: transform 0.15s; width: 100%;
+  }
+  .zoom-cta-btn:hover { transform: scale(1.03); }
+
+  /* Input */
+  .input-area {
+    padding: 12px 16px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    display: flex; gap: 10px; align-items: flex-end;
+    flex-shrink: 0;
+  }
+  .input-field {
+    flex: 1; padding: 11px 16px;
+    border-radius: 24px;
+    border: 1.5px solid #e2e8f0;
+    font-size: 15px;
+    font-family: 'Noto Sans JP', sans-serif;
+    background: #fff; color: #1e293b;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .input-field:focus { outline: none; border-color: #2563eb; }
+  .input-field:disabled { background: #f8fafc; }
+  .send-btn {
+    width: 42px; height: 42px;
+    border-radius: 50%; border: none;
+    background: #cbd5e1; color: #fff;
+    font-size: 18px; cursor: default;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .send-btn.active { background: #2563eb; cursor: pointer; }
+  .send-btn.active:hover { transform: scale(1.08); }
+
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-5px); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="header">
+    <div class="header-icon">補</div>
+    <div>
+      <div class="header-title">補助金 無料診断</div>
+      <div class="header-sub">3分でわかる受給シミュレーション</div>
+    </div>
+  </div>
+
+  <div class="chat-area" id="chatArea"></div>
+
+  <div class="input-area">
+    <input type="text" class="input-field" id="inputField" placeholder="メッセージを入力..." autocomplete="off">
+    <button class="send-btn" id="sendBtn">↑</button>
+  </div>
+</div>
+
+<script>
+const SYSTEM_PROMPT = `あなたは補助金・助成金の専門アドバイザーチャットボットです。
+友だち登録してくれたユーザーに対して、会話形式でヒアリングを行い、対象となる補助金・助成金を判定し、受給シミュレーションを提示します。
+
+【あなたの役割】
+1. 親しみやすく丁寧な口調で会話する（「です・ます」調、絵文字は最小限）
+2. 一度に聞く質問は1つだけ。短く、わかりやすく。
+3. 以下の情報を会話の中で自然にヒアリングする：
+   - 会社名または屋号名
+   - 業種（何をしている会社か）
+   - 設立からの年数
+   - 従業員数（正社員・アルバイト）
+   - インボイス登録の有無
+   - 補助金の申請経験の有無（ある場合は補助金名）
+   - 補助金を使ってやりたいこと（具体的に深掘りする）
+
+4. やりたいことが曖昧な場合は、具体例を出しながら深掘りする
+   例：「店舗を改装したい」→「内装の変更ですか？それとも設備の入れ替えですか？」
+   例：「ITを導入したい」→「例えば会計ソフトやPOSレジ、予約システムなど、どんなツールをお考えですか？」
+
+5. 必要な情報が揃ったら、以下の補助金から対象を判定する：
+
+【補助金データベース】
+■ 小規模事業者持続化補助金
+  対象：従業員20人以下（商業・サービス業は5人以下）
+  補助上限：通常枠50万円、特別枠200万円
+  補助率：2/3（賃金引上げ枠は3/4）
+  対象経費：広告費、ウェブサイト、店舗改装、設備導入など
+  インボイス特例：免税事業者がインボイス登録した場合、上限+50万円
+
+■ IT導入補助金
+  対象：中小企業・小規模事業者
+  補助上限：通常枠5万〜150万円、デジタル化基盤導入枠〜350万円
+  補助率：1/2〜3/4
+  対象経費：ソフトウェア、クラウドサービス、PC・タブレット等
+
+■ ものづくり補助金
+  対象：中小企業（従業員300人以下）
+  補助上限：750万円〜1,250万円
+  補助率：1/2（小規模事業者は2/3）
+  対象経費：機械装置、技術導入、専門家経費など
+
+■ 事業再構築補助金
+  対象：中小企業（新分野展開・業態転換等）
+  補助上限：100万円〜1,500万円
+  補助率：1/2〜2/3
+  対象経費：建物費、機械装置、広告宣伝費など
+
+6. 判定結果を出す時は以下のフォーマットで出力する（必ずこの形式で）：
+
+---SIMULATION_START---
+{
+  "results": [
+    {
+      "name": "補助金名",
+      "maxAmount": "上限額（数字のみ・万円単位）",
+      "estimatedAmount": "想定受給額（数字のみ・万円単位）",
+      "rate": "補助率",
+      "reason": "対象と判断した理由（1文で簡潔に）"
+    }
+  ],
+  "message": "結果に添えるコメント（1〜2文）"
+}
+---SIMULATION_END---
+
+7. 対象の補助金が見つからない場合は、正直に伝えた上で今後の可能性を示唆する。
+
+【重要ルール】
+- 最初の挨拶では「補助金の無料診断」であることを伝え、所要時間は3分程度と案内する
+- 質問は必ず1つずつ。複数の質問を同時にしない
+- ユーザーの回答が短くても責めない。選択肢を提示して答えやすくする
+- 全ての情報が揃うまではシミュレーション結果を出さない
+- 判定に必要な情報が全て揃ったと判断したら、すぐにシミュレーション結果を出す
+- 専門用語は使わず、わかりやすい言葉で説明する`;
+
+const FEE_INITIAL = 10;
+const FEE_RATE = 0.15;
+
+const INITIAL_MESSAGE = {
+  role: "assistant",
+  content: "こんにちは！補助金の無料診断へようこそ。\n\n3分ほどの簡単な質問に答えるだけで、あなたの会社が受け取れる可能性のある補助金と、おおよその受給額をシミュレーションします。\n\nまずは、会社名（または屋号名）を教えていただけますか？"
+};
+
+// State
+let messages = [INITIAL_MESSAGE];
+let loading = false;
+let isComposing = false;
+
+// DOM
+const chatArea = document.getElementById('chatArea');
+const inputField = document.getElementById('inputField');
+const sendBtn = document.getElementById('sendBtn');
+
+// Helpers
+function parseSimulation(text) {
+  const match = text.match(/---SIMULATION_START---([\s\S]*?)---SIMULATION_END---/);
+  if (!match) return null;
+  try { return JSON.parse(match[1].trim()); }
+  catch { return null; }
+}
+
+function cleanMessageText(text) {
+  return text.replace(/---SIMULATION_START---[\s\S]*?---SIMULATION_END---/, '').trim();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function buildSimulationHTML(data) {
+  let html = '<div class="sim-card"><div class="sim-label">診断結果</div>';
+
+  data.results.forEach((r) => {
+    const est = parseInt(r.estimatedAmount) || 0;
+    const fee = FEE_INITIAL + Math.round(est * FEE_RATE);
+    const remaining = est - fee;
+
+    html += `
+      <div class="sim-item">
+        <div class="sim-name">${escapeHtml(r.name)}</div>
+        <div class="sim-est-label">想定受給額</div>
+        <div class="sim-est-amount">約 ${est}<span>万円</span></div>
+        <div class="sim-row">
+          <span>補助率</span>
+          <span class="sim-row-val">${escapeHtml(r.rate)}</span>
+        </div>
+        <div class="sim-divider"></div>
+        <div class="sim-row">
+          <span>手数料（税込概算）</span>
+          <span class="sim-row-val">約 ${fee}万円</span>
+        </div>
+        <div class="sim-fee-detail">
+          <span></span>
+          <span>初期費用${FEE_INITIAL}万円＋成果報酬${Math.round(FEE_RATE * 100)}%</span>
+        </div>
+        <div class="sim-remaining">
+          <div class="sim-remaining-label">お手元に残る金額</div>
+          <div class="sim-remaining-amount">約 ${remaining}<span>万円</span></div>
+        </div>
+        <div class="sim-reason">${escapeHtml(r.reason)}</div>
+      </div>`;
+  });
+
+  if (data.message) {
+    html += `<div class="sim-message">${escapeHtml(data.message)}</div>`;
+  }
+  html += '</div>';
+
+  // Zoom CTA
+  html += `
+    <div class="zoom-cta">
+      <div class="zoom-cta-title">詳しく相談してみませんか？</div>
+      <div class="zoom-cta-desc">30分のZoom面談で、申請可能かどうか<br>具体的にご説明します（無料）</div>
+      <button class="zoom-cta-btn" onclick="window.open('https://calendly.com/', '_blank')">無料Zoom面談を予約する</button>
+    </div>`;
+
+  return html;
+}
+
+function renderMessages() {
+  let html = '';
+
+  messages.forEach((msg) => {
+    const sim = msg.role === 'assistant' ? parseSimulation(msg.content) : null;
+    const cleanText = msg.role === 'assistant' ? cleanMessageText(msg.content) : msg.content;
+    const side = msg.role === 'user' ? 'user' : 'assistant';
+
+    html += `<div class="msg-row ${side}"><div class="msg-wrapper">`;
+
+    if (cleanText) {
+      html += `<div class="msg-bubble ${side}">${escapeHtml(cleanText).replace(/\n/g, '<br>')}</div>`;
+    }
+    if (sim) {
+      html += buildSimulationHTML(sim);
+    }
+
+    html += '</div></div>';
+  });
+
+  if (loading) {
+    html += `
+      <div class="msg-row assistant" style="animation: fadeIn 0.2s ease-out">
+        <div class="typing">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>`;
+  }
+
+  chatArea.innerHTML = html;
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function updateSendBtn() {
+  const hasText = inputField.value.trim().length > 0;
+  if (hasText && !loading) {
+    sendBtn.classList.add('active');
+  } else {
+    sendBtn.classList.remove('active');
+  }
+}
+
+async function sendMessage() {
+  const text = inputField.value.trim();
+  if (!text || loading) return;
+
+  const userMsg = { role: 'user', content: text };
+  messages.push(userMsg);
+  inputField.value = '';
+  loading = true;
+  inputField.disabled = true;
+  updateSendBtn();
+  renderMessages();
+
+  try {
+    const apiMessages = messages.map(m => ({ role: m.role, content: m.content }));
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: apiMessages,
+      }),
+    });
+
+    const data = await response.json();
+    const responseText = data.content
+      ? data.content.map(c => c.text || '').join('')
+      : 'すみません、エラーが発生しました。もう一度お試しください。';
+
+    messages.push({ role: 'assistant', content: responseText });
+  } catch (err) {
+    messages.push({
+      role: 'assistant',
+      content: '通信エラーが発生しました。もう一度お試しください。',
+    });
+  }
+
+  loading = false;
+  inputField.disabled = false;
+  inputField.focus();
+  updateSendBtn();
+  renderMessages();
+}
+
+// Events
+inputField.addEventListener('input', updateSendBtn);
+
+inputField.addEventListener('compositionstart', () => { isComposing = true; });
+inputField.addEventListener('compositionend', () => { isComposing = false; });
+
+inputField.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !isComposing && !e.isComposing) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+// Init
+renderMessages();
+inputField.focus();
+</script>
+
+</body>
+</html>
