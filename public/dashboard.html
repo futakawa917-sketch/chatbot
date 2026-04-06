@@ -147,6 +147,53 @@
   .badge-detail { background: rgba(139,92,246,0.15); color: #a78bfa; }
   .badge-zoom-yes { background: rgba(52,211,153,0.15); color: #34d399; }
   .badge-zoom-no { background: rgba(148,163,184,0.1); color: #64748b; }
+  .badge-status { padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .badge-診断完了 { background: rgba(148,163,184,0.15); color: #94a3b8; }
+  .badge-Zoom予約済 { background: rgba(96,165,250,0.15); color: #60a5fa; }
+  .badge-Zoom実施済 { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .badge-契約 { background: rgba(52,211,153,0.15); color: #34d399; }
+  .badge-検討中 { background: rgba(251,191,36,0.15); color: #fbbf24; }
+  .badge-失注 { background: rgba(239,68,68,0.15); color: #f87171; }
+
+  .status-select {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #e2e8f0;
+    font-size: 12px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+  }
+  .status-select:focus { outline: none; border-color: #60a5fa; }
+
+  .note-input {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif;
+    width: 100%;
+    resize: vertical;
+    min-height: 60px;
+    margin-top: 8px;
+  }
+  .note-input:focus { outline: none; border-color: #60a5fa; }
+  .save-note-btn {
+    background: #2563eb;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  .save-note-btn:hover { background: #1d4ed8; }
 
   .amount { color: #34d399; font-weight: 700; }
 
@@ -252,7 +299,10 @@
 
 <div class="header">
   <div class="header-title"><span>補助金診断</span> 営業ダッシュボード</div>
-  <button class="refresh-btn" onclick="loadData()">更新</button>
+  <div style="display:flex;gap:8px;">
+    <a href="/sales.html" style="background:#a78bfa;border:none;border-radius:8px;padding:10px 20px;color:#fff;font-size:14px;font-weight:500;font-family:'Noto Sans JP',sans-serif;cursor:pointer;text-decoration:none;transition:background 0.2s;">営業パイプライン</a>
+    <button class="refresh-btn" onclick="loadData()">更新</button>
+  </div>
 </div>
 
 <div class="stats-bar" id="statsBar"></div>
@@ -269,6 +319,15 @@
     <option value="today">今日</option>
     <option value="week">今週</option>
     <option value="month">今月</option>
+  </select>
+  <select class="filter-select" id="filterStatus">
+    <option value="">全ステータス</option>
+    <option value="診断完了">診断完了</option>
+    <option value="Zoom予約済">Zoom予約済</option>
+    <option value="Zoom実施済">Zoom実施済</option>
+    <option value="契約">契約</option>
+    <option value="検討中">検討中</option>
+    <option value="失注">失注</option>
   </select>
   <select class="filter-select" id="sortOrder">
     <option value="newest">新しい順</option>
@@ -290,10 +349,11 @@
         <th>従業員</th>
         <th>診断結果</th>
         <th>合計受給額</th>
+        <th>ステータス</th>
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="9" class="loading">読み込み中...</td></tr>
+      <tr><td colspan="10" class="loading">読み込み中...</td></tr>
     </tbody>
   </table>
 </div>
@@ -358,6 +418,11 @@ function getFilteredData() {
     data = data.filter(d => (d.mode || '').includes(mode));
   }
 
+  const status = document.getElementById('filterStatus').value;
+  if (status) {
+    data = data.filter(d => (d.status || '診断完了') === status);
+  }
+
   if (dateFilter) {
     const now = new Date();
     const start = new Date();
@@ -394,12 +459,11 @@ function getTotalAmount(simResults) {
 
 function renderStats() {
   const total = allData.length;
-  const today = allData.filter(d => {
-    const t = new Date(); t.setHours(0,0,0,0);
-    return new Date(d.created_at) >= t;
-  }).length;
-  const withSim = allData.filter(d => d.simulation_results).length;
+  const zoomBooked = allData.filter(d => d.status === 'Zoom予約済' || d.status === 'Zoom実施済' || d.status === '契約').length;
+  const contracted = allData.filter(d => d.status === '契約').length;
+  const pending = allData.filter(d => d.status === '検討中').length;
   const totalAmount = allData.reduce((sum, d) => sum + getTotalAmount(d.simulation_results), 0);
+  const contractedAmount = allData.filter(d => d.status === '契約').reduce((sum, d) => sum + getTotalAmount(d.simulation_results), 0);
 
   document.getElementById('statsBar').innerHTML = `
     <div class="stat-card">
@@ -407,16 +471,24 @@ function renderStats() {
       <div class="stat-value blue">${total}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">今日の診断</div>
-      <div class="stat-value green">${today}</div>
+      <div class="stat-label">Zoom予約以上</div>
+      <div class="stat-value purple">${zoomBooked}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">シミュレーション完了</div>
-      <div class="stat-value purple">${withSim}</div>
+      <div class="stat-label">契約数</div>
+      <div class="stat-value green">${contracted}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">検討中</div>
+      <div class="stat-value yellow">${pending}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">合計想定受給額</div>
-      <div class="stat-value yellow">${totalAmount.toLocaleString()}万</div>
+      <div class="stat-value blue">${totalAmount.toLocaleString()}万</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">契約済み受給額</div>
+      <div class="stat-value green">${contractedAmount.toLocaleString()}万</div>
     </div>
   `;
 }
@@ -427,7 +499,7 @@ function renderTable() {
 
   if (data.length === 0) {
     tbody.innerHTML = `
-      <tr><td colspan="9">
+      <tr><td colspan="10">
         <div class="empty-state">
           <div class="empty-state-icon">📋</div>
           <div class="empty-state-text">データがありません</div>
@@ -441,6 +513,7 @@ function renderTable() {
     const subsidies = getSubsidyNames(d.simulation_results);
     const empTotal = [d.employees_full, d.employees_part].filter(Boolean).join(' / ');
 
+    const st = d.status || '診断完了';
     return `
       <tr onclick="showDetail(${i})" data-index="${i}">
         <td>${formatDate(d.created_at)}</td>
@@ -452,6 +525,7 @@ function renderTable() {
         <td>${escapeHtml(empTotal) || '-'}</td>
         <td style="max-width:250px;">${escapeHtml(subsidies)}</td>
         <td class="amount">${totalAmt > 0 ? totalAmt + '万円' : '-'}</td>
+        <td><span class="badge badge-status badge-${st}">${st}</span></td>
       </tr>`;
   }).join('');
 }
@@ -514,6 +588,23 @@ function showDetail(index) {
     </div>
 
     <div class="detail-section">
+      <div class="detail-section-title">進捗ステータス</div>
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <select class="status-select" id="modalStatusSelect" onchange="updateStatus('${d.id}', this.value)">
+          <option value="診断完了" ${(d.status||'診断完了')==='診断完了'?'selected':''}>診断完了</option>
+          <option value="Zoom予約済" ${d.status==='Zoom予約済'?'selected':''}>Zoom予約済</option>
+          <option value="Zoom実施済" ${d.status==='Zoom実施済'?'selected':''}>Zoom実施済</option>
+          <option value="契約" ${d.status==='契約'?'selected':''}>契約</option>
+          <option value="検討中" ${d.status==='検討中'?'selected':''}>検討中</option>
+          <option value="失注" ${d.status==='失注'?'selected':''}>失注</option>
+        </select>
+        <span id="statusSaved" style="font-size:12px;color:#34d399;display:none;">保存しました</span>
+      </div>
+      <textarea class="note-input" id="modalNote" placeholder="営業メモ（Zoomの日時、話した内容、次のアクションなど）">${escapeHtml(d.status_note || '')}</textarea>
+      <button class="save-note-btn" onclick="saveNote('${d.id}')">メモを保存</button>
+    </div>
+
+    <div class="detail-section">
       <div class="detail-section-title">シミュレーション結果</div>
       ${simHtml}
     </div>
@@ -535,9 +626,51 @@ document.getElementById('modalOverlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('modalOverlay')) closeModal();
 });
 
+async function updateStatus(id, status) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/conversation_logs?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
+    });
+    const item = allData.find(d => d.id === id);
+    if (item) item.status = status;
+    renderStats();
+    renderTable();
+    const el = document.getElementById('statusSaved');
+    if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2000); }
+  } catch (e) {}
+}
+
+async function saveNote(id) {
+  const note = document.getElementById('modalNote').value;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/conversation_logs?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ status_note: note, updated_at: new Date().toISOString() }),
+    });
+    const item = allData.find(d => d.id === id);
+    if (item) item.status_note = note;
+    const el = document.getElementById('statusSaved');
+    if (el) { el.textContent = 'メモ保存しました'; el.style.display = 'inline'; setTimeout(() => { el.style.display = 'none'; el.textContent = '保存しました'; }, 2000); }
+  } catch (e) {}
+}
+
 document.getElementById('searchInput').addEventListener('input', renderTable);
 document.getElementById('filterMode').addEventListener('change', renderTable);
 document.getElementById('filterDate').addEventListener('change', renderTable);
+document.getElementById('filterStatus').addEventListener('change', renderTable);
 document.getElementById('sortOrder').addEventListener('change', renderTable);
 
 document.addEventListener('keydown', (e) => {

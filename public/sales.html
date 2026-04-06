@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>営業パイプライン</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  .header {
+    background: #1e293b;
+    border-bottom: 1px solid #334155;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-title { font-size: 18px; font-weight: 700; }
+  .header-title span { color: #a78bfa; }
+  .header-nav { display: flex; gap: 8px; }
+  .nav-btn {
+    background: #334155;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: #94a3b8;
+    font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { background: #475569; color: #e2e8f0; }
+  .nav-btn.active { background: #2563eb; color: #fff; }
+
+  .pipeline {
+    display: flex;
+    gap: 16px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    min-height: calc(100vh - 65px);
+    align-items: flex-start;
+  }
+
+  .pipeline-col {
+    min-width: 300px;
+    max-width: 300px;
+    flex-shrink: 0;
+  }
+  .pipeline-header {
+    padding: 12px 16px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .pipeline-header .count {
+    background: rgba(255,255,255,0.15);
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  .pipeline-body {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    padding: 12px;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .col-zoom-booked .pipeline-header { background: #1e40af; color: #93c5fd; }
+  .col-zoom-done .pipeline-header { background: #5b21b6; color: #c4b5fd; }
+  .col-negotiating .pipeline-header { background: #92400e; color: #fcd34d; }
+  .col-contracted .pipeline-header { background: #065f46; color: #6ee7b7; }
+  .col-lost .pipeline-header { background: #7f1d1d; color: #fca5a5; }
+
+  .deal-card {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .deal-card:hover { border-color: #60a5fa; transform: translateY(-1px); }
+  .deal-company { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .deal-rep { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+  .deal-amount { font-size: 20px; font-weight: 800; color: #34d399; margin-bottom: 6px; }
+  .deal-amount span { font-size: 12px; font-weight: 400; }
+  .deal-subsidies { font-size: 11px; color: #64748b; margin-bottom: 8px; line-height: 1.5; }
+  .deal-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .deal-date { color: #94a3b8; }
+  .deal-note-preview {
+    font-size: 11px;
+    color: #60a5fa;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .empty-col {
+    text-align: center;
+    padding: 30px 10px;
+    color: #475569;
+    font-size: 13px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; }
+  .modal-close {
+    background: none; border: none; color: #94a3b8;
+    font-size: 24px; cursor: pointer;
+  }
+  .modal-close:hover { color: #fff; }
+
+  .detail-section {
+    background: #0f172a;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .detail-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #60a5fa;
+    margin-bottom: 10px;
+  }
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+  .detail-label { color: #94a3b8; }
+  .detail-value { color: #e2e8f0; font-weight: 500; }
+
+  .status-select {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    width: 100%;
+  }
+  .status-select:focus { outline: none; border-color: #60a5fa; }
+
+  .note-input {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif;
+    width: 100%;
+    resize: vertical;
+    min-height: 80px;
+    margin-top: 8px;
+  }
+  .note-input:focus { outline: none; border-color: #60a5fa; }
+  .save-btn {
+    background: #2563eb;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .save-btn:hover { background: #1d4ed8; }
+  .save-msg {
+    font-size: 12px;
+    color: #34d399;
+    margin-left: 10px;
+    display: none;
+  }
+
+  .sim-result-item {
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 6px;
+  }
+  .sim-result-name { font-size: 13px; font-weight: 700; color: #60a5fa; }
+  .sim-result-amount { font-size: 16px; font-weight: 700; color: #34d399; }
+  .sim-result-detail { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+  .chat-log {
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #0f172a;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  .chat-msg { margin-bottom: 6px; line-height: 1.5; }
+  .chat-msg-user { color: #60a5fa; }
+  .chat-msg-bot { color: #94a3b8; }
+  .chat-role { font-weight: 700; font-size: 11px; margin-right: 4px; }
+
+  .summary-bar {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px 0;
+    flex-wrap: wrap;
+  }
+  .summary-item {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 12px 18px;
+    min-width: 140px;
+  }
+  .summary-label { font-size: 11px; color: #94a3b8; margin-bottom: 2px; }
+  .summary-value { font-size: 22px; font-weight: 800; }
+  .summary-value.blue { color: #60a5fa; }
+  .summary-value.purple { color: #a78bfa; }
+  .summary-value.yellow { color: #fbbf24; }
+  .summary-value.green { color: #34d399; }
+  .summary-value.red { color: #f87171; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title"><span>営業</span>パイプライン</div>
+  <div class="header-nav">
+    <a href="/dashboard.html" class="nav-btn">診断ダッシュボード</a>
+    <a href="/sales.html" class="nav-btn active">営業パイプライン</a>
+    <button class="nav-btn" onclick="loadData()">更新</button>
+  </div>
+</div>
+
+<div class="summary-bar" id="summaryBar"></div>
+
+<div class="pipeline" id="pipeline"></div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://zypsanfwkbwpuwchjqfn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5cHNhbmZ3a2J3cHV3Y2hqcWZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyOTkyNzgsImV4cCI6MjA5MDg3NTI3OH0.tzZUBOMurHMcttSaTYQu4BzOVxOnxTfrB9aqigFwShI';
+
+const STAGES = [
+  { key: 'Zoom予約済', label: 'Zoom予約済', colClass: 'col-zoom-booked' },
+  { key: 'Zoom実施済', label: 'Zoom実施済', colClass: 'col-zoom-done' },
+  { key: '検討中', label: '検討中', colClass: 'col-negotiating' },
+  { key: '契約', label: '契約', colClass: 'col-contracted' },
+  { key: '失注', label: '失注', colClass: 'col-lost' },
+];
+
+let allData = [];
+
+async function loadData() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/conversation_logs?select=*&status=in.("Zoom予約済","Zoom実施済","検討中","契約","失注")&order=updated_at.desc`,
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    allData = await res.json();
+    if (!Array.isArray(allData)) allData = [];
+    renderSummary();
+    renderPipeline();
+  } catch (e) {
+    document.getElementById('pipeline').innerHTML = '<div style="padding:40px;color:#64748b;">読み込みに失敗しました</div>';
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function getTotalAmount(sim) {
+  if (!sim) return 0;
+  return parseInt(sim.totalEstimated) || 0;
+}
+
+function getSubsidyNames(sim) {
+  if (!sim || !sim.results) return '';
+  return sim.results.map(r => r.name).join(', ');
+}
+
+function renderSummary() {
+  const byStage = {};
+  STAGES.forEach(s => byStage[s.key] = allData.filter(d => d.status === s.key));
+
+  const totalPipeline = allData.filter(d => d.status !== '失注').reduce((s, d) => s + getTotalAmount(d.simulation_results), 0);
+  const contracted = byStage['契約'].reduce((s, d) => s + getTotalAmount(d.simulation_results), 0);
+
+  document.getElementById('summaryBar').innerHTML = `
+    <div class="summary-item">
+      <div class="summary-label">Zoom予約済</div>
+      <div class="summary-value blue">${byStage['Zoom予約済'].length}件</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Zoom実施済</div>
+      <div class="summary-value purple">${byStage['Zoom実施済'].length}件</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">検討中</div>
+      <div class="summary-value yellow">${byStage['検討中'].length}件</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">契約</div>
+      <div class="summary-value green">${byStage['契約'].length}件</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">パイプライン総額</div>
+      <div class="summary-value blue">${totalPipeline.toLocaleString()}万</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">契約済み金額</div>
+      <div class="summary-value green">${contracted.toLocaleString()}万</div>
+    </div>
+  `;
+}
+
+function renderPipeline() {
+  let html = '';
+
+  STAGES.forEach(stage => {
+    const items = allData.filter(d => d.status === stage.key);
+    const stageAmount = items.reduce((s, d) => s + getTotalAmount(d.simulation_results), 0);
+
+    html += `<div class="pipeline-col ${stage.colClass}">`;
+    html += `<div class="pipeline-header">
+      <span>${stage.label}</span>
+      <span class="count">${items.length}件 / ${stageAmount.toLocaleString()}万</span>
+    </div>`;
+    html += '<div class="pipeline-body">';
+
+    if (items.length === 0) {
+      html += '<div class="empty-col">案件なし</div>';
+    } else {
+      items.forEach(d => {
+        const amt = getTotalAmount(d.simulation_results);
+        const subs = getSubsidyNames(d.simulation_results);
+        html += `
+          <div class="deal-card" onclick="showDetail('${d.id}')">
+            <div class="deal-company">${escapeHtml(d.company_name) || '不明'}</div>
+            <div class="deal-rep">${escapeHtml(d.representative) || ''} ${escapeHtml(d.location) || ''}</div>
+            <div class="deal-amount">${amt > 0 ? amt.toLocaleString() : '?'}<span>万円</span></div>
+            ${subs ? `<div class="deal-subsidies">${escapeHtml(subs)}</div>` : ''}
+            <div class="deal-meta">
+              <span>${escapeHtml(d.business_content || d.business_type) || ''}</span>
+              <span class="deal-date">${formatDate(d.updated_at || d.created_at)}</span>
+            </div>
+            ${d.status_note ? `<div class="deal-note-preview">${escapeHtml(d.status_note)}</div>` : ''}
+          </div>`;
+      });
+    }
+
+    html += '</div></div>';
+  });
+
+  document.getElementById('pipeline').innerHTML = html;
+}
+
+function showDetail(id) {
+  const d = allData.find(x => x.id === id);
+  if (!d) return;
+
+  const sim = d.simulation_results;
+  let simHtml = '<div style="color:#64748b;">シミュレーション未完了</div>';
+  if (sim && sim.results) {
+    simHtml = sim.results.map(r => `
+      <div class="sim-result-item">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="sim-result-name">${escapeHtml(r.name)}</div>
+          <div class="sim-result-amount">約${r.estimatedAmount || '?'}万円</div>
+        </div>
+        ${r.reason ? '<div class="sim-result-detail">'+escapeHtml(r.reason)+'</div>' : ''}
+        ${r.cautions ? '<div class="sim-result-detail" style="color:#f87171;">'+escapeHtml(r.cautions)+'</div>' : ''}
+      </div>
+    `).join('');
+    if (sim.totalEstimated) {
+      simHtml += `<div style="text-align:right;font-size:18px;font-weight:800;color:#34d399;margin-top:8px;">合計: 約${sim.totalEstimated}万円</div>`;
+    }
+  }
+
+  let chatHtml = '<div style="color:#64748b;">会話ログなし</div>';
+  if (d.full_conversation && d.full_conversation.length > 0) {
+    chatHtml = d.full_conversation.map(m => {
+      const isUser = m.role === 'user';
+      let text = m.content.replace(/---SIMULATION_START---[\s\S]*?---SIMULATION_END---/g, '[シミュレーション結果]');
+      return `<div class="chat-msg ${isUser?'chat-msg-user':'chat-msg-bot'}">
+        <span class="chat-role">${isUser?'ユーザー':'ボット'}:</span>${escapeHtml(text)}
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title">${escapeHtml(d.company_name) || '不明'}</div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">基本情報</div>
+      <div class="detail-row"><span class="detail-label">会社名</span><span class="detail-value">${escapeHtml(d.company_name) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">代表者</span><span class="detail-value">${escapeHtml(d.representative) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">法人/個人</span><span class="detail-value">${escapeHtml(d.entity_type) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">設立</span><span class="detail-value">${escapeHtml(d.established) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">所在地</span><span class="detail-value">${escapeHtml(d.location) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">正社員</span><span class="detail-value">${escapeHtml(d.employees_full) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">アルバイト</span><span class="detail-value">${escapeHtml(d.employees_part) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">インボイス</span><span class="detail-value">${escapeHtml(d.invoice_registered) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">補助金経験</span><span class="detail-value">${escapeHtml(d.subsidy_experience) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">事業内容</span><span class="detail-value">${escapeHtml(d.business_content) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">やりたいこと</span><span class="detail-value">${escapeHtml(d.desired_use) || '-'}</span></div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">営業ステータス</div>
+      <select class="status-select" id="modalStatus" onchange="updateStatus('${d.id}')">
+        <option value="Zoom予約済" ${d.status==='Zoom予約済'?'selected':''}>Zoom予約済</option>
+        <option value="Zoom実施済" ${d.status==='Zoom実施済'?'selected':''}>Zoom実施済</option>
+        <option value="検討中" ${d.status==='検討中'?'selected':''}>検討中</option>
+        <option value="契約" ${d.status==='契約'?'selected':''}>契約</option>
+        <option value="失注" ${d.status==='失注'?'selected':''}>失注</option>
+      </select>
+      <textarea class="note-input" id="modalNote" placeholder="営業メモ&#10;・Zoom日時: &#10;・話した内容: &#10;・次のアクション: &#10;・温度感: ">${escapeHtml(d.status_note || '')}</textarea>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="save-btn" onclick="saveNote('${d.id}')">メモを保存</button>
+        <span class="save-msg" id="saveMsg">保存しました</span>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">シミュレーション結果</div>
+      ${simHtml}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">会話ログ</div>
+      <div class="chat-log">${chatHtml}</div>
+    </div>
+  `;
+
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+async function updateStatus(id) {
+  const status = document.getElementById('modalStatus').value;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/conversation_logs?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
+    });
+    const item = allData.find(d => d.id === id);
+    if (item) item.status = status;
+    renderSummary();
+    renderPipeline();
+    showSaveMsg();
+  } catch (e) {}
+}
+
+async function saveNote(id) {
+  const note = document.getElementById('modalNote').value;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/conversation_logs?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ status_note: note, updated_at: new Date().toISOString() }),
+    });
+    const item = allData.find(d => d.id === id);
+    if (item) item.status_note = note;
+    renderPipeline();
+    showSaveMsg();
+  } catch (e) {}
+}
+
+function showSaveMsg() {
+  const el = document.getElementById('saveMsg');
+  if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2000); }
+}
+
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+loadData();
+</script>
+
+</body>
+</html>
