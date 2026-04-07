@@ -436,14 +436,14 @@ function showDetail(id) {
       <div class="sim-result-item">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div class="sim-result-name">${escapeHtml(r.name)}</div>
-          <div class="sim-result-amount">約${r.estimatedAmount || '?'}万円</div>
+          <div class="sim-result-amount">最大 ${r.estimatedAmount || '?'}万円</div>
         </div>
         ${r.reason ? '<div class="sim-result-detail">'+escapeHtml(r.reason)+'</div>' : ''}
         ${r.cautions ? '<div class="sim-result-detail" style="color:#f87171;">'+escapeHtml(r.cautions)+'</div>' : ''}
       </div>
     `).join('');
     if (sim.totalEstimated) {
-      simHtml += `<div style="text-align:right;font-size:18px;font-weight:800;color:#34d399;margin-top:8px;">合計: 約${sim.totalEstimated}万円</div>`;
+      simHtml += `<div style="text-align:right;font-size:18px;font-weight:800;color:#34d399;margin-top:8px;">合計: 最大 ${sim.totalEstimated}万円</div>`;
     }
   }
 

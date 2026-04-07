@@ -118,18 +118,20 @@ const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した
 
 ★算出方法：
 - 雇用保険加入＋雇用がある場合、上記1〜7を全て検討対象に含める
-- 「現実的に取りに行ける合計金額」として計算
-- estimatedAmountは控えめに、maxAmountは大きめに
-- reasonには「可能性として、現状の雇用状況なら以下の助成金が候補になります」と明記
+- 「最大限取りに行ける金額」として計算する
+- estimatedAmount = 最大想定額（その制度の理論上の最大受給額）
+- maxAmount = 制度の上限額（同じく最大値）
+- reasonには「現状の雇用状況なら最大で○○万円の受給可能性があります」と明記
 - howToQualifyには「弊社で要件確認・申請代行が可能です。Zoom面談で詳細をご説明します」と記載
+- 「最大」という表現を必ず使う
 
 ★例：従業員=正社員3名+アルバイト2名、雇用保険加入の場合
-- キャリアアップ助成金：160万円（アルバイト2名×80万）
-- 人材開発支援助成金：30〜60万円
-- 業務改善助成金：60万円
-- 働き方改革推進支援助成金：50〜100万円
-- 両立支援等助成金：30万円
-- 合計：約300〜400万円が「将来的に活用可能」
+- キャリアアップ助成金：最大160万円（アルバイト2名×80万）
+- 人材開発支援助成金：最大60万円
+- 業務改善助成金：最大60万円
+- 働き方改革推進支援助成金：最大100万円
+- 両立支援等助成金：最大30万円
+- 合計：最大410万円
 
 このように、雇用情報だけで合計300万円以上の期待値を出すことで、Zoom面談への興味を引き出す。
 
@@ -376,7 +378,7 @@ function buildSimFlexMessage(sim) {
       margin: 'md',
       contents: [
         { type: 'text', text: r.name, color: '#60a5fa', size: 'sm', weight: 'bold' },
-        { type: 'text', text: `約${est}万円`, color: '#34d399', size: 'xl', weight: 'bold' },
+        { type: 'text', text: `最大 ${est}万円`, color: '#34d399', size: 'xl', weight: 'bold' },
         { type: 'text', text: `補助率: ${r.rate || '-'}`, color: '#94a3b8', size: 'xs' },
         ...(r.reason ? [{ type: 'text', text: r.reason, color: '#94a3b8', size: 'xxs', wrap: true }] : []),
       ],
@@ -388,14 +390,14 @@ function buildSimFlexMessage(sim) {
       type: 'box', layout: 'vertical', paddingAll: '12px', margin: 'md',
       backgroundColor: '#065f46', cornerRadius: '8px',
       contents: [
-        { type: 'text', text: '合計 想定受給額', color: '#6ee7b7', size: 'xs' },
-        { type: 'text', text: `約${sim.totalEstimated}万円`, color: '#34d399', size: 'xxl', weight: 'bold' },
+        { type: 'text', text: '合計 最大受給額', color: '#6ee7b7', size: 'xs' },
+        { type: 'text', text: `最大 ${sim.totalEstimated}万円`, color: '#34d399', size: 'xxl', weight: 'bold' },
       ],
     });
   }
 
   return {
-    type: 'flex', altText: `診断結果: 合計約${sim.totalEstimated || '?'}万円`,
+    type: 'flex', altText: `診断結果: 合計最大${sim.totalEstimated || '?'}万円`,
     contents: {
       type: 'bubble', size: 'giga',
       styles: { body: { backgroundColor: '#0f172a' } },
