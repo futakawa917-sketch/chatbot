@@ -14,6 +14,9 @@ const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した
 - 1返信300文字以内
 - 絵文字最小限
 - シミュレーション結果は ---SIMULATION_START--- ～ ---SIMULATION_END--- でJSON出力（システムがカード表示に変換）
+- 返答はそのまま素のテキストで書く。ダブルクォート（"）やシングルクォート（'）で文章を囲まない
+- カギカッコ「」も使う必要はない（強調したい時のみ使う）
+- マークダウン記法は使わない（**太字**や##見出しなど）
 
 【会話パターン対応】
 - 診断したい→診断フロー
@@ -288,7 +291,17 @@ function parseSimulation(text) {
 }
 
 function cleanText(text) {
-  return text.replace(/---SIMULATION_START---[\s\S]*?---SIMULATION_END---/g, '').trim();
+  let cleaned = text.replace(/---SIMULATION_START---[\s\S]*?---SIMULATION_END---/g, '').trim();
+  // 行頭・行末の余計なダブルクォートを除去
+  cleaned = cleaned.split('\n').map(line => {
+    let l = line.trim();
+    // 行全体が ""...""  または "..." で囲まれている場合は除去
+    if (/^"+(.+?)"+$/.test(l)) {
+      l = l.replace(/^"+/, '').replace(/"+$/, '');
+    }
+    return l;
+  }).join('\n');
+  return cleaned.trim();
 }
 
 function buildSimFlexMessage(sim) {
