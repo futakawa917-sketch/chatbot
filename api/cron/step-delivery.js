@@ -19,8 +19,38 @@ const FOLLOW_STEPS = [
   },
 ];
 
-// 診断完了済みユーザーには自動配信しない（営業チームが個別対応）
-const COMPLETED_STEPS = [];
+// 診断完了後のZoom誘導ステップ配信
+const COMPLETED_STEPS = [
+  {
+    delayHours: 24,
+    text: '昨日は補助金診断ありがとうございました！\n\n診断結果はご確認いただけましたか？\n\n実は診断結果はあくまで簡易版で、実際にはもっと該当する制度が見つかったり、最適な申請順序のご提案ができたりします。\n\n30分の無料Zoom面談で、あなたの事業に最適な補助金戦略を一緒に考えませんか？\n\n「Zoom希望」とメッセージいただければ予約方法をご案内します！',
+  },
+  {
+    delayHours: 72,
+    text: 'こんにちは！\n先日の診断結果について、ご検討いただけていますでしょうか？\n\n補助金には申請期限があり、特に人気の制度は早めに動かないと締切に間に合わないことも…\n\n弊社では：\n✓ 事業計画書の作成代行\n✓ 申請書類の作成代行\n✓ 採択後のフォロー\n\nまで全てサポートしているので、お客様の手間はほぼゼロです。\n\nまずは無料Zoomで詳しく聞いてみませんか？',
+  },
+  {
+    delayHours: 168, // 7日後
+    text: 'お久しぶりです！\n\n先日ご診断いただいた補助金の件、その後いかがでしょうか？\n\n「他社と比較したい」「もう少し詳しく知りたい」「自分でも申請できるか相談したい」など、どんなご相談でも大丈夫です。\n\nZoom面談は完全無料・30分・押し売りなしですので、お気軽にどうぞ！\n\n「Zoom希望」とメッセージくださいね。',
+  },
+  {
+    delayHours: 336, // 14日後
+    text: 'ご無沙汰しております。\n\n先月の補助金診断、覚えていらっしゃいますか？\n\n実は、ちょうど今が次回の公募締切に向けた準備のベストタイミングです。今からなら余裕を持って準備できます。\n\n「ちょっと話だけ聞いてみたい」でも全然OKですので、ぜひ無料Zoomでお話ししませんか？',
+  },
+];
+
+async function hasBookedZoom(userId) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/conversation_logs?line_user_id=eq.${userId}&status=in.("Zoom予約済","Zoom実施済","契約","検討中","失注")&select=id&limit=1`,
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const data = await res.json();
+    return Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
+}
 
 async function pushMessage(userId, text) {
   await fetch('https://api.line.me/v2/bot/message/push', {
@@ -76,10 +106,14 @@ export default async function handler(req, res) {
       const stepIdx = user.step_index || 0;
       let steps, anchorTime;
 
-      // 診断完了済みユーザーには自動配信しない（営業チームが個別対応）
-      if (user.diagnosis_completed_at) continue;
+      if (user.diagnosis_completed_at) {
+        // 診断完了済みユーザー: Zoom予約以降のステータスなら配信停止
+        const booked = await hasBookedZoom(user.line_user_id);
+        if (booked) continue;
 
-      if (user.followed_at) {
+        steps = COMPLETED_STEPS;
+        anchorTime = new Date(user.diagnosis_completed_at).getTime();
+      } else if (user.followed_at) {
         // 友だち追加のみ・診断未完了のユーザー
         steps = FOLLOW_STEPS;
         anchorTime = new Date(user.followed_at).getTime();
