@@ -2,7 +2,7 @@ name: Sync Jグランツ
 
 on:
   schedule:
-    # 毎日朝6時（JST 15時）に実行
+    # 毎日 JST 朝6時 (UTC 21:00) に実行
     - cron: '0 21 * * *'
   workflow_dispatch:
 
