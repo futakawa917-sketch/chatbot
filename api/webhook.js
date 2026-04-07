@@ -192,6 +192,41 @@ async function upsertConversation(userId, displayName, messages, mode, extraFiel
   }
 }
 
+const DAY0_MESSAGES = [
+  {
+    delayMinutes: 30,
+    text: 'お忙しいところ失礼します！\nもしご検討中でしたら、診断は3分で終わりますのでお気軽にどうぞ。\n\n「診断」または「①」「②」とメッセージくださいね！',
+  },
+  {
+    delayMinutes: 180, // 3時間後
+    text: '実はあまり知られていないのですが…\n\n従業員を雇っているだけで、最大80万円の助成金が該当する可能性があります（やりたいことが決まっていなくてもOK）。\n\n3分の診断で確認できますので、お時間あるときにぜひ！',
+  },
+  {
+    delayMinutes: 600, // 10時間後（19時想定）
+    text: 'お疲れ様です！\n\n本日は補助金診断をお試しいただけましたでしょうか？\n\n明日の朝のスキマ時間にでも「診断」と送ってみてください。3分で結果が出ます！',
+  },
+];
+
+async function scheduleDay0Messages(userId) {
+  if (!SUPABASE_URL) return;
+  const now = Date.now();
+  const records = DAY0_MESSAGES.map(m => ({
+    line_user_id: userId,
+    message_text: m.text,
+    scheduled_at: new Date(now + m.delayMinutes * 60 * 1000).toISOString(),
+  }));
+  await fetch(`${SUPABASE_URL}/rest/v1/scheduled_messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(records),
+  });
+}
+
 async function getLineProfile(userId) {
   try {
     const res = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
@@ -350,6 +385,8 @@ export default async function handler(req, res) {
         followed_at: new Date().toISOString(),
       });
       await replyToLine(event.replyToken, [{ type: 'text', text: GREETING }]);
+      // Day 0 の追加配信をスケジュール
+      await scheduleDay0Messages(userId);
       continue;
     }
 

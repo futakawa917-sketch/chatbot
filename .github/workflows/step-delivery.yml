@@ -1,0 +1,17 @@
+name: Step Delivery Cron
+
+on:
+  schedule:
+    # 毎10分実行（Day 0の細かい配信用）
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call step delivery endpoint
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://chatbot-tau-five-39.vercel.app/api/cron/step-delivery

@@ -82,8 +82,60 @@ async function updateStepIndex(userId, newIndex) {
   });
 }
 
+async function processScheduledMessages() {
+  const nowIso = new Date().toISOString();
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/scheduled_messages?sent_at=is.null&scheduled_at=lte.${nowIso}&select=*`,
+    { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+  );
+  const due = await res.json();
+  if (!Array.isArray(due)) return 0;
+
+  let sent = 0;
+  for (const msg of due) {
+    // 診断完了済みなら未送信のDay0は破棄
+    const userRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/line_conversations?line_user_id=eq.${msg.line_user_id}&select=diagnosis_completed_at&limit=1`,
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const userData = await userRes.json();
+    const completed = userData[0]?.diagnosis_completed_at;
+
+    // 完了済みなら送信せずsent_atだけ埋めてスキップ
+    if (completed) {
+      await fetch(`${SUPABASE_URL}/rest/v1/scheduled_messages?id=eq.${msg.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ sent_at: nowIso }),
+      });
+      continue;
+    }
+
+    try {
+      await pushMessage(msg.line_user_id, msg.message_text);
+      await fetch(`${SUPABASE_URL}/rest/v1/scheduled_messages?id=eq.${msg.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ sent_at: nowIso }),
+      });
+      sent++;
+    } catch (e) {}
+  }
+  return sent;
+}
+
 export default async function handler(req, res) {
-  // Cron認証（Vercel Cronから呼ばれる場合は自動で認証）
+  // Cron認証
   if (CRON_SECRET) {
     const auth = req.headers.authorization;
     if (auth !== `Bearer ${CRON_SECRET}`) {
@@ -95,6 +147,9 @@ export default async function handler(req, res) {
   let sent = 0;
 
   try {
+    // Day0等のスケジュール済みメッセージを先に処理
+    sent += await processScheduledMessages();
+
     // 全ユーザー取得
     const usersRes = await fetch(
       `${SUPABASE_URL}/rest/v1/line_conversations?select=*`,
