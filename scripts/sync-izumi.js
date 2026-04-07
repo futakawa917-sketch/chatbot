@@ -67,42 +67,37 @@ async function main() {
     // 5. CSVダウンロードボタンを探してクリック
     console.log('5. CSVダウンロード...');
 
-    // ページHTMLを保存（デバッグ用）
-    const searchHtml = await page.content();
-    fs.writeFileSync('/tmp/izumi_search_page.html', searchHtml);
+    // ページ全体を一度スクロールして、すべての要素を表示させる
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(1000);
 
-    // 「CSV」を含むすべての要素を探す
-    const csvElements = await page.locator('text=CSV').all();
-    console.log('   CSV関連要素数:', csvElements.length);
+    // BUTTON要素で「CSVダウンロード」を含むもの（インポートではなくダウンロード）
+    const csvButton = page.locator('button', { hasText: 'CSVダウンロード' }).first();
+    const buttonExists = await csvButton.count();
+    console.log('   CSVダウンロードボタン:', buttonExists, '個');
 
-    if (csvElements.length === 0) {
-      throw new Error('CSV関連要素が見つかりません');
-    }
-
-    // ボタンの情報を確認
-    for (let i = 0; i < csvElements.length; i++) {
-      const tag = await csvElements[i].evaluate(el => el.tagName);
-      const text = await csvElements[i].textContent();
-      console.log(`   要素[${i}]: ${tag} - ${text?.trim()}`);
+    if (buttonExists === 0) {
+      // ページHTMLを保存（デバッグ用）
+      const searchHtml = await page.content();
+      fs.writeFileSync('/tmp/izumi_search_page.html', searchHtml);
+      throw new Error('CSVダウンロードボタンが見つかりません');
     }
 
     // ダウンロード待機 + ボタンクリックを並列実行
-    const downloadPromise = page.waitForEvent('download', { timeout: 60000 }).catch(() => null);
-    const popupPromise = page.context().waitForEvent('page', { timeout: 60000 }).catch(() => null);
+    const downloadPromise = page.waitForEvent('download', { timeout: 90000 }).catch(() => null);
+    const popupPromise = page.context().waitForEvent('page', { timeout: 90000 }).catch(() => null);
 
-    // CSVボタンをクリック（最初のものを使う）
-    await csvElements[0].scrollIntoViewIfNeeded();
-    await csvElements[0].click();
-
-    console.log('   クリック後待機...');
+    // force: true で非表示判定を無視してクリック
+    await csvButton.click({ force: true });
+    console.log('   クリック実行');
     await page.waitForTimeout(3000);
 
     // モーダルが出ていればOKボタンを押す
     const confirmBtn = await page.$('button:has-text("OK")') ||
-                       await page.$('button:has-text("ダウンロード")') ||
-                       await page.$('text=ダウンロードする');
+                       await page.$('button:has-text("ダウンロードする")') ||
+                       await page.$('button:has-text("はい")');
     if (confirmBtn) {
-      console.log('   確認ボタンをクリック');
+      console.log('   確認モーダルをクリック');
       await confirmBtn.click();
     }
 
@@ -119,29 +114,19 @@ async function main() {
       fs.writeFileSync(csvPath, csvText);
       console.log('   CSVを保存（新しいページから）:', csvPath);
     } else {
-      // 最終手段：現在のページの中身がCSVかチェック
-      const currentText = await page.evaluate(() => document.body.innerText);
-      if (currentText.includes(',') && currentText.length > 1000) {
-        fs.writeFileSync(csvPath, currentText);
-        console.log('   CSVを保存（現在のページから）:', csvPath);
-      } else {
-        // 全リンクからCSVのhrefを探す
-        const csvLinks = await page.$$eval('a', as =>
-          as.map(a => a.href).filter(h => h.toLowerCase().includes('csv') || h.includes('export'))
-        );
-        console.log('   CSV関連リンク:', csvLinks);
-        if (csvLinks.length > 0) {
-          // クッキー付きでfetch
-          const cookies = await context.cookies();
-          const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-          const r = await fetch(csvLinks[0], { headers: { Cookie: cookieStr } });
-          const txt = await r.text();
-          fs.writeFileSync(csvPath, txt);
-          console.log('   CSVを保存（fetch経由）:', csvPath, 'サイズ:', txt.length);
-        } else {
-          throw new Error('CSVのダウンロードに失敗しました');
-        }
-      }
+      // 最終手段：現在のページのHTMLを保存してデバッグ
+      const html = await page.content();
+      fs.writeFileSync('/tmp/izumi_after_click.html', html);
+      // 全リンクからCSVのhrefを探す
+      const csvLinks = await page.$$eval('a, button', els =>
+        els.map(el => ({
+          tag: el.tagName,
+          text: el.textContent?.trim().substring(0, 50),
+          href: el.href || el.getAttribute('data-url') || '',
+        })).filter(e => e.text?.toLowerCase().includes('csv') || e.href.toLowerCase().includes('csv'))
+      );
+      console.log('   CSV候補:', JSON.stringify(csvLinks, null, 2));
+      throw new Error('ダウンロードイベントもポップアップも発生しませんでした');
     }
 
     // 6. CSV内容を読み込み
