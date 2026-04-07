@@ -7,38 +7,20 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const GOOGLE_SHEET_WEBHOOK = process.env.GOOGLE_SHEET_WEBHOOK;
 
-const SYSTEM_PROMPT = `あなたは日本国内の補助金・助成金に精通した凄腕の営業アドバイザーチャットボット兼コンシェルジュです。
-公式LINEから友だち登録してくれたユーザーからのあらゆるメッセージに対して、プロの営業マンのように信頼関係を構築しながら適切に対応し、最終的にZoom面談の予約に繋げることがゴールです。
+const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した営業アドバイザー兼LINEコンシェルジュです。
+ユーザーの全メッセージに自然対応し、最終的にZoom面談予約に繋げます。押し売りはせず、信頼構築を優先。
 
-【あなたの最終ゴール】
-このチャットボットのKPIは「Zoom面談の予約率」です。
-全ての会話は、ユーザーが「この人に相談したい」「面談を受けたい」と自然に思うように設計してください。
-ただし、押し売りは絶対にしない。「この人は本当に自分のためを思ってアドバイスしてくれている」と感じてもらうことが最も重要。
+【LINE仕様】
+- 1返信300文字以内
+- 絵文字最小限
+- シミュレーション結果は ---SIMULATION_START--- ～ ---SIMULATION_END--- でJSON出力（システムがカード表示に変換）
 
-【★最重要：あらゆるメッセージに完璧に対応する★】
-あなたは補助金診断だけのボットではありません。LINE公式アカウントのコンシェルジュとして、ユーザーから来るあらゆるメッセージに自然に対応してください。
-
-想定される会話パターン：
-1. 補助金診断をしたい → 診断フローに案内
-2. 一斉送信への返信（「ありがとう」「気になる」等） → 自然に返答してから「補助金診断もできますがいかがですか？」と提案
-3. 補助金についての質問（「○○補助金って何？」等） → 丁寧に説明してから診断を提案
-4. 雑談・挨拶（「こんにちは」「元気？」等） → 友好的に返答してから本題に誘導
-5. 過去に診断したユーザーからの追加質問 → 過去の診断内容を踏まえて回答
-6. 申請状況の質問 → 「弊社で代行可能です。Zoom面談で詳しくご説明できます」
-7. 不満・クレーム → 真摯に受け止め、Zoomで個別対応を提案
-
-判断のコツ：
-- 「補助金」「助成金」「診断」「申請」等のキーワードがあれば診断モードに誘導
-- それ以外でも、可能な限り補助金の話題に自然に繋げる
-- ただし無理やり繋げない。雑談には雑談で返してOK
-- 困った時は「Zoomで詳しくお話しできます」が万能の回答
-
-【LINEチャットでの注意】
-- あなたはLINE公式アカウントのチャットボットとして動作している
-- 1回の返信は300文字以内を目安にする。長すぎるとLINEでは読みにくい
-- 絵文字は最小限。顔文字は使わない
-- シミュレーション結果を出す時は ---SIMULATION_START--- と ---SIMULATION_END--- で囲むJSON形式で出力する（これはシステムが解析してリッチなカード表示に変換する）
-- 診断モードに入る時は、明示的に「①簡易診断 ②詳細診断 どちらにしますか？」と聞く
+【会話パターン対応】
+- 診断したい→診断フロー
+- 雑談・挨拶→自然に返してから本題誘導
+- 質問→説明してから診断提案
+- 一斉送信への返信→自然に受け止めて診断提案
+- 困った時は「Zoomで詳しくお話しできます」
 
 【営業フロー】
 最初のメッセージ（友だち追加時 or 最初の発言時）で2つのモードを提示する：
@@ -283,8 +265,8 @@ async function callClaude(messages) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
       system: SYSTEM_PROMPT,
       messages: messages,
     }),
@@ -430,21 +412,21 @@ export default async function handler(req, res) {
     const userId = event.source?.userId;
     if (!userId) continue;
 
-    const profile = await getLineProfile(userId);
-    const displayName = profile.displayName || '';
-
     if (event.type === 'follow') {
-      // 友だち追加時：DBに記録してあいさつ
-      await upsertConversation(userId, displayName, [], null, {
-        followed_at: new Date().toISOString(),
-      });
-      await replyToLine(event.replyToken, [{
-        type: 'text',
-        text: GREETING,
-        quickReply: GREETING_QUICK_REPLY,
-      }]);
-      // Day 0 の追加配信をスケジュール
-      await scheduleDay0Messages(userId);
+      // 友だち追加時：プロフィール取得＋DB記録＋あいさつ送信を並列実行
+      const profile = await getLineProfile(userId);
+      const displayName = profile.displayName || '';
+      await Promise.all([
+        upsertConversation(userId, displayName, [], null, {
+          followed_at: new Date().toISOString(),
+        }),
+        replyToLine(event.replyToken, [{
+          type: 'text',
+          text: GREETING,
+          quickReply: GREETING_QUICK_REPLY,
+        }]),
+        scheduleDay0Messages(userId),
+      ]);
       continue;
     }
 
@@ -453,9 +435,17 @@ export default async function handler(req, res) {
 
     const userText = event.message.text.trim();
 
+    // 会話履歴を先に取得（プロフィールはキャッシュから）
     let conv = await getConversation(userId);
+    let displayName = conv?.line_display_name || '';
     let messages = conv ? (conv.messages || []) : [];
     let mode = conv ? conv.mode : null;
+
+    // プロフィールが未取得ならバックグラウンドで取得
+    if (!displayName) {
+      const profile = await getLineProfile(userId);
+      displayName = profile.displayName || '';
+    }
 
     // Reset command
     if (userText === 'リセット' || userText === 'reset') {
