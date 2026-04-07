@@ -361,7 +361,7 @@ async function callClaude(messages) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: SYSTEM_PROMPT,
       messages: messages,
     }),
@@ -388,7 +388,12 @@ function parseSimulation(text) {
 }
 
 function cleanText(text) {
+  // 完全な SIMULATION ブロックを除去
   let cleaned = text.replace(/---SIMULATION_START---[\s\S]*?---SIMULATION_END---/g, '').trim();
+  // SIMULATION_START があって END がない（途中で切れた）場合も以降を全て除去
+  cleaned = cleaned.replace(/---SIMULATION_START---[\s\S]*$/, '').trim();
+  // 単独の JSON っぽい塊（{ "results": ... ）も除去
+  cleaned = cleaned.replace(/\{[\s\S]*?"results"[\s\S]*$/, '').trim();
   // ダブルクォート（半角）と" "（全角）を全て除去
   cleaned = cleaned.replace(/["""]/g, '');
   return cleaned.trim();
