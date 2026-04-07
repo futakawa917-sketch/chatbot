@@ -410,7 +410,51 @@ async function getLineProfile(userId) {
   return { displayName: '', userId };
 }
 
-async function callClaude(messages) {
+async function getRelevantSubsidies(prefecture) {
+  if (!SUPABASE_URL) return [];
+  try {
+    const nowIso = new Date().toISOString();
+    const params = new URLSearchParams();
+    params.set('select', 'title,subsidy_max_limit,subsidy_rate,target_area_search,target_number_of_employees,use_purpose,industry,acceptance_end_datetime,institution_name,front_subsidy_detail_page_url');
+    params.set('acceptance_end_datetime', `gte.${nowIso}`);
+    params.set('order', 'subsidy_max_limit.desc');
+    params.set('limit', '30');
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/jgrants_subsidies?${params}`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+    if (!res.ok) return [];
+    const all = await res.json();
+    if (!Array.isArray(all)) return [];
+
+    // 全国 or 該当地域の補助金にフィルタ
+    const filtered = all.filter(s => {
+      if (!s.target_area_search) return true;
+      if (s.target_area_search.includes('全国')) return true;
+      if (prefecture && s.target_area_search.includes(prefecture)) return true;
+      return false;
+    });
+
+    return filtered.slice(0, 20);
+  } catch (e) {
+    return [];
+  }
+}
+
+function buildSubsidyContext(subsidies) {
+  if (subsidies.length === 0) return '';
+  const lines = subsidies.map(s => {
+    const max = s.subsidy_max_limit ? `最大${Math.round(s.subsidy_max_limit / 10000)}万円` : '上限額不明';
+    const deadline = s.acceptance_end_datetime ? `（締切: ${s.acceptance_end_datetime.slice(0, 10)}）` : '';
+    return `- ${s.title} | ${max} | 補助率: ${s.subsidy_rate || '-'} | 対象: ${s.target_number_of_employees || '-'} | 地域: ${s.target_area_search || '-'} ${deadline}`;
+  }).join('\n');
+  return `\n\n【現在公募中の補助金（Jグランツ最新データ）】\n${lines}\n\n上記は公式の最新データです。シミュレーション結果には、ユーザーの状況に該当する制度をこの中から優先的に選んで提案してください。`;
+}
+
+async function callClaude(messages, extraSystemContext = '') {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -421,7 +465,7 @@ async function callClaude(messages) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4000,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + extraSystemContext,
       messages: messages,
     }),
   });
@@ -666,7 +710,16 @@ export default async function handler(req, res) {
 
     messages.push({ role: 'user', content: userText });
 
-    const claudeResponse = await callClaude(messages);
+    // ユーザーの会話から都道府県を簡易抽出
+    const allUserText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
+    const prefMatch = allUserText.match(/(北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都?|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県)/);
+    const prefecture = prefMatch ? prefMatch[1] : null;
+
+    // 関連する補助金データを取得
+    const relevantSubsidies = await getRelevantSubsidies(prefecture);
+    const subsidyContext = buildSubsidyContext(relevantSubsidies);
+
+    const claudeResponse = await callClaude(messages, subsidyContext);
 
     messages.push({ role: 'assistant', content: claudeResponse });
 
