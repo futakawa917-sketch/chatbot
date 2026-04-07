@@ -1,13 +1,19 @@
-import crypto from 'crypto';
-
 export default async function handler(req, res) {
-  const secret = process.env.LINE_CHANNEL_SECRET || '';
-  const testBody = '{"destination":"test","events":[]}';
-  const sig = crypto.createHmac('SHA256', secret).update(testBody).digest('base64');
+  const check = (name) => {
+    const v = process.env[name] || '';
+    return {
+      length: v.length,
+      lastChar: v.charCodeAt(v.length - 1),
+      hasNewline: v.endsWith('\n') || v.endsWith('\r'),
+    };
+  };
   return res.status(200).json({
-    secretLength: secret.length,
-    secretFirstChar: secret.charCodeAt(0),
-    secretLastChar: secret.charCodeAt(secret.length - 1),
-    expectedSig: sig,
+    LINE_CHANNEL_SECRET: check('LINE_CHANNEL_SECRET'),
+    LINE_CHANNEL_ACCESS_TOKEN: check('LINE_CHANNEL_ACCESS_TOKEN'),
+    SUPABASE_URL: check('SUPABASE_URL'),
+    SUPABASE_ANON_KEY: check('SUPABASE_ANON_KEY'),
+    ANTHROPIC_API_KEY: check('ANTHROPIC_API_KEY'),
+    GOOGLE_SHEET_WEBHOOK: check('GOOGLE_SHEET_WEBHOOK'),
+    CRON_SECRET: check('CRON_SECRET'),
   });
 }
