@@ -418,7 +418,7 @@ async function getRelevantSubsidies(prefecture) {
     params.set('select', 'title,subsidy_max_limit,subsidy_rate,target_area_search,target_number_of_employees,use_purpose,industry,acceptance_end_datetime,institution_name,front_subsidy_detail_page_url');
     params.set('acceptance_end_datetime', `gte.${nowIso}`);
     params.set('order', 'subsidy_max_limit.desc');
-    params.set('limit', '30');
+    params.set('limit', '1000');
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/jgrants_subsidies?${params}`, {
       headers: {
@@ -438,7 +438,7 @@ async function getRelevantSubsidies(prefecture) {
       return false;
     });
 
-    return filtered.slice(0, 20);
+    return filtered;
   } catch (e) {
     return [];
   }
