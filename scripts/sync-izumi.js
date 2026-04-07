@@ -45,6 +45,17 @@ async function main() {
 
     console.log('   ログイン後のURL:', page.url());
 
+    // 「他の端末でログイン中」プロンプトをチェック
+    const forceLoginButton = await page.$('text=ログインする');
+    if (forceLoginButton) {
+      console.log('3.5. 他の端末をログアウトしてログイン続行...');
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'networkidle' }),
+        forceLoginButton.click(),
+      ]);
+      console.log('   強制ログイン後のURL:', page.url());
+    }
+
     if (page.url().includes('/login')) {
       throw new Error('ログインに失敗しました');
     }
