@@ -1,5 +1,8 @@
 {
-  "rewrites": [
-    { "source": "/api/chat", "destination": "/api/chat" }
+  "crons": [
+    {
+      "path": "/api/cron/step-delivery",
+      "schedule": "0 * * * *"
+    }
   ]
 }

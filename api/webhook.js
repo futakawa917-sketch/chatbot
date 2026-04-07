@@ -7,19 +7,38 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const GOOGLE_SHEET_WEBHOOK = process.env.GOOGLE_SHEET_WEBHOOK;
 
-const SYSTEM_PROMPT = `あなたは日本国内の補助金・助成金に精通した凄腕の営業アドバイザーチャットボットです。
-公式LINEから友だち登録してくれたユーザーに対して、プロの営業マンのように信頼関係を構築しながら丁寧にヒアリングを行い、日本に存在するあらゆる補助金・助成金の中から該当する可能性のあるものを全て洗い出し、受給シミュレーションを提示し、最終的にZoom面談の予約に繋げることがゴールです。
+const SYSTEM_PROMPT = `あなたは日本国内の補助金・助成金に精通した凄腕の営業アドバイザーチャットボット兼コンシェルジュです。
+公式LINEから友だち登録してくれたユーザーからのあらゆるメッセージに対して、プロの営業マンのように信頼関係を構築しながら適切に対応し、最終的にZoom面談の予約に繋げることがゴールです。
 
 【あなたの最終ゴール】
 このチャットボットのKPIは「Zoom面談の予約率」です。
 全ての会話は、ユーザーが「この人に相談したい」「面談を受けたい」と自然に思うように設計してください。
 ただし、押し売りは絶対にしない。「この人は本当に自分のためを思ってアドバイスしてくれている」と感じてもらうことが最も重要。
 
+【★最重要：あらゆるメッセージに完璧に対応する★】
+あなたは補助金診断だけのボットではありません。LINE公式アカウントのコンシェルジュとして、ユーザーから来るあらゆるメッセージに自然に対応してください。
+
+想定される会話パターン：
+1. 補助金診断をしたい → 診断フローに案内
+2. 一斉送信への返信（「ありがとう」「気になる」等） → 自然に返答してから「補助金診断もできますがいかがですか？」と提案
+3. 補助金についての質問（「○○補助金って何？」等） → 丁寧に説明してから診断を提案
+4. 雑談・挨拶（「こんにちは」「元気？」等） → 友好的に返答してから本題に誘導
+5. 過去に診断したユーザーからの追加質問 → 過去の診断内容を踏まえて回答
+6. 申請状況の質問 → 「弊社で代行可能です。Zoom面談で詳しくご説明できます」
+7. 不満・クレーム → 真摯に受け止め、Zoomで個別対応を提案
+
+判断のコツ：
+- 「補助金」「助成金」「診断」「申請」等のキーワードがあれば診断モードに誘導
+- それ以外でも、可能な限り補助金の話題に自然に繋げる
+- ただし無理やり繋げない。雑談には雑談で返してOK
+- 困った時は「Zoomで詳しくお話しできます」が万能の回答
+
 【LINEチャットでの注意】
 - あなたはLINE公式アカウントのチャットボットとして動作している
 - 1回の返信は300文字以内を目安にする。長すぎるとLINEでは読みにくい
 - 絵文字は最小限。顔文字は使わない
 - シミュレーション結果を出す時は ---SIMULATION_START--- と ---SIMULATION_END--- で囲むJSON形式で出力する（これはシステムが解析してリッチなカード表示に変換する）
+- 診断モードに入る時は、明示的に「①簡易診断 ②詳細診断 どちらにしますか？」と聞く
 
 【営業フロー】
 最初のメッセージ（友だち追加時 or 最初の発言時）で2つのモードを提示する：
@@ -135,13 +154,14 @@ async function getConversation(userId) {
   return data[0] || null;
 }
 
-async function upsertConversation(userId, displayName, messages, mode) {
+async function upsertConversation(userId, displayName, messages, mode, extraFields = {}) {
   const body = {
     line_user_id: userId,
     line_display_name: displayName,
     messages: messages,
     mode: mode,
     updated_at: new Date().toISOString(),
+    ...extraFields,
   };
 
   const existing = await getConversation(userId);
@@ -158,6 +178,7 @@ async function upsertConversation(userId, displayName, messages, mode) {
     });
   } else {
     body.created_at = new Date().toISOString();
+    body.followed_at = new Date().toISOString();
     await fetch(`${SUPABASE_URL}/rest/v1/line_conversations`, {
       method: 'POST',
       headers: {
@@ -317,18 +338,25 @@ export default async function handler(req, res) {
   const events = req.body.events || [];
 
   for (const event of events) {
+    const userId = event.source?.userId;
+    if (!userId) continue;
+
+    const profile = await getLineProfile(userId);
+    const displayName = profile.displayName || '';
+
     if (event.type === 'follow') {
+      // 友だち追加時：DBに記録してあいさつ
+      await upsertConversation(userId, displayName, [], null, {
+        followed_at: new Date().toISOString(),
+      });
       await replyToLine(event.replyToken, [{ type: 'text', text: GREETING }]);
       continue;
     }
 
+    if (event.type === 'unfollow') continue;
     if (event.type !== 'message' || event.message.type !== 'text') continue;
 
-    const userId = event.source.userId;
     const userText = event.message.text.trim();
-
-    const profile = await getLineProfile(userId);
-    const displayName = profile.displayName || '';
 
     let conv = await getConversation(userId);
     let messages = conv ? (conv.messages || []) : [];
@@ -336,21 +364,12 @@ export default async function handler(req, res) {
 
     // Reset command
     if (userText === 'リセット' || userText === 'reset') {
-      messages = [];
-      mode = null;
-      await upsertConversation(userId, displayName, messages, mode);
+      await upsertConversation(userId, displayName, [], null, {
+        diagnosis_completed_at: null,
+        step_index: 0,
+      });
       await replyToLine(event.replyToken, [{ type: 'text', text: GREETING }]);
       continue;
-    }
-
-    // First message - no history
-    if (messages.length === 0) {
-      if (!mode) {
-        await replyToLine(event.replyToken, [{ type: 'text', text: GREETING }]);
-        messages = [];
-        await upsertConversation(userId, displayName, messages, mode);
-        continue;
-      }
     }
 
     messages.push({ role: 'user', content: userText });
@@ -359,22 +378,30 @@ export default async function handler(req, res) {
 
     messages.push({ role: 'assistant', content: claudeResponse });
 
-    // Detect mode
+    // Detect mode from user input
     if (!mode) {
-      if (/1|簡易|サクッ/.test(userText)) mode = '簡易';
-      else if (/2|詳細|じっくり/.test(userText)) mode = '詳細';
+      if (/^[12①②]|簡易|サクッ|詳細|じっくり/.test(userText)) {
+        if (/[2②]|詳細|じっくり/.test(userText)) mode = '詳細';
+        else mode = '簡易';
+      }
     }
-
-    await upsertConversation(userId, displayName, messages, mode);
 
     // Check for simulation
     const sim = parseSimulation(claudeResponse);
     const cleanedText = cleanText(claudeResponse);
 
+    const extraFields = {};
+    if (sim) {
+      extraFields.diagnosis_completed_at = new Date().toISOString();
+      extraFields.step_index = 0;
+    }
+
+    await upsertConversation(userId, displayName, messages, mode, extraFields);
+
     const replyMessages = [];
 
     if (cleanedText) {
-      // Split long text into multiple messages (LINE limit ~5000 chars but shorter is better)
+      // Split long text into multiple messages
       const chunks = [];
       let remaining = cleanedText;
       while (remaining.length > 0) {
@@ -397,10 +424,7 @@ export default async function handler(req, res) {
       await saveToLog(userId, displayName, sim, messages);
     }
 
-    // LINE allows max 5 messages per reply
-    if (replyMessages.length > 5) {
-      replyMessages.splice(5);
-    }
+    if (replyMessages.length > 5) replyMessages.splice(5);
 
     if (replyMessages.length > 0) {
       await replyToLine(event.replyToken, replyMessages);
