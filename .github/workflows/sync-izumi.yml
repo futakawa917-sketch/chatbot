@@ -1,0 +1,46 @@
+name: Sync 情報の泉
+
+on:
+  schedule:
+    # 毎日 JST 4:00 (UTC 19:00) - 共有アカウント競合回避のため深夜実行
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: scripts
+        run: npx playwright install --with-deps chromium
+
+      - name: Run sync script
+        working-directory: scripts
+        env:
+          IZUMI_USERNAME: ${{ secrets.IZUMI_USERNAME }}
+          IZUMI_PASSWORD: ${{ secrets.IZUMI_PASSWORD }}
+          IZUMI_LOGIN_URL: ${{ secrets.IZUMI_LOGIN_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          UPLOAD_ENDPOINT: https://chatbot-tau-five-39.vercel.app/api/upload-izumi-csv
+        run: node sync-izumi.js
+
+      - name: Upload error screenshot if failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-screenshot
+          path: |
+            /tmp/izumi_error.png
+            /tmp/izumi_search_page.html
+          if-no-files-found: ignore
