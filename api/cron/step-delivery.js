@@ -19,25 +19,8 @@ const FOLLOW_STEPS = [
   },
 ];
 
-// 診断完了後のステップ配信（Zoom予約向け）
-const COMPLETED_STEPS = [
-  {
-    delayHours: 1,
-    text: '先ほどは診断ありがとうございました！\n\n診断結果はご確認いただけましたか？\nご不明な点や、もっと詳しく知りたい補助金があれば、お気軽にメッセージください。\n\n30分の無料Zoom面談では、申請の流れや採択率を上げるコツも具体的にお伝えできます！',
-  },
-  {
-    delayHours: 24,
-    text: 'こんにちは！\n昨日の診断結果はいかがでしたか？\n\n補助金には申請期限があり、直近の締切に間に合わせるには早めの準備が大切です。\n\n「Zoomで詳しく聞きたい」「○○補助金について教えて」など、お気軽にメッセージくださいね！',
-  },
-  {
-    delayHours: 72,
-    text: '先日は診断ありがとうございました。\n\n改めてお伝えすると、弊社では：\n・事業計画書の作成代行\n・申請書類の作成代行\n・採択後のフォロー\n\nまで全てサポートしています。お客様の手間はほとんどかかりません。\n\nまずは無料Zoomでお話しませんか？',
-  },
-  {
-    delayHours: 168, // 7日後
-    text: 'お久しぶりです。\n\n以前ご診断いただいた件、その後いかがでしょうか？\nもしご不明な点や追加でご相談したいことがあれば、いつでもメッセージくださいね。\n\n申請を検討される場合は、Zoom面談で具体的なスケジュールをご案内できます！',
-  },
-];
+// 診断完了済みユーザーには自動配信しない（営業チームが個別対応）
+const COMPLETED_STEPS = [];
 
 async function pushMessage(userId, text) {
   await fetch('https://api.line.me/v2/bot/message/push', {
@@ -93,12 +76,11 @@ export default async function handler(req, res) {
       const stepIdx = user.step_index || 0;
       let steps, anchorTime;
 
-      if (user.diagnosis_completed_at) {
-        // 診断完了済みユーザー
-        steps = COMPLETED_STEPS;
-        anchorTime = new Date(user.diagnosis_completed_at).getTime();
-      } else if (user.followed_at) {
-        // 友だち追加のみのユーザー
+      // 診断完了済みユーザーには自動配信しない（営業チームが個別対応）
+      if (user.diagnosis_completed_at) continue;
+
+      if (user.followed_at) {
+        // 友だち追加のみ・診断未完了のユーザー
         steps = FOLLOW_STEPS;
         anchorTime = new Date(user.followed_at).getTime();
       } else {
