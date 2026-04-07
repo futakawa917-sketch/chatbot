@@ -154,11 +154,6 @@ const POST_SIMULATION_QUICK_REPLY = buildQuickReply([
   { label: 'もう一度診断する', text: 'リセット' },
 ]);
 
-const DURING_DIAGNOSIS_QUICK_REPLY = buildQuickReply([
-  { label: '一旦やめる', text: 'リセット' },
-  { label: 'スキップ', text: 'わからない・スキップ' },
-]);
-
 function verifySignature(body, signature) {
   const hash = crypto.createHmac('SHA256', LINE_SECRET).update(body).digest('base64');
   return hash === signature;
@@ -521,13 +516,11 @@ export default async function handler(req, res) {
       if (sim) {
         // シミュレーション後はZoom予約・追加質問のボタン
         lastMsg.quickReply = POST_SIMULATION_QUICK_REPLY;
-      } else if (mode && !sim) {
-        // 診断中は途中離脱・スキップのボタン
-        lastMsg.quickReply = DURING_DIAGNOSIS_QUICK_REPLY;
       } else if (!mode) {
         // モード未選択時は最初のメニュー
         lastMsg.quickReply = GREETING_QUICK_REPLY;
       }
+      // 診断中はQuick Replyを表示しない（自然に答えてもらう）
     }
 
     if (replyMessages.length > 0) {
