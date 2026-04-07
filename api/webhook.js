@@ -182,7 +182,7 @@ const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した
 ---SIMULATION_END---
 
 【★Zoom面談への誘導メッセージ（シミュレーション結果出力直後の固定メッセージ）★】
-シミュレーション結果のJSON出力の後に、必ず以下のメッセージを送信する（一字一句このまま）：
+シミュレーション結果のJSON出力の後に、必ず以下のメッセージを送信する：
 
 ---
 こちらが診断結果です！
@@ -194,8 +194,8 @@ const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した
 弊社の強み：
 ✓ 過去500社以上の申請実績
 ✓ 採択率92%（業界平均60%）
-✓ 完全成果報酬型（不採択なら費用0円）
 ✓ 事業計画書〜申請まで全て代行
+✓ 着手金10万円＋成果報酬15%の明朗会計
 
 直近の公募締切が迫っている制度もあるため、
 60分の無料Zoom面談をおすすめしています。
@@ -205,6 +205,12 @@ const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した
 
 ※「○○○万円」の部分はシミュレーション結果のtotalEstimatedに置き換えること
 ※それ以外は一字一句変更しない
+
+【料金体系（聞かれたら正確に答える）】
+- 着手金：10万円（申請開始時）
+- 成果報酬：受給額の15%（受給後）
+- 不採択の場合：着手金は返金されないが、再申請のサポートあり
+- 例：受給額300万円の場合 → 手数料合計 10万 + 45万 = 55万円、お手元に残る金額 245万円
 
 【★超重要：診断未完了ユーザーにはZoomを案内しない★】
 - まだ補助金診断を完了していないユーザーから「Zoom予約したい」「相談したい」と言われても、Zoom予約には進めない
@@ -399,6 +405,9 @@ function cleanText(text) {
   return cleaned.trim();
 }
 
+const FEE_INITIAL = 10; // 着手金（万円）
+const FEE_RATE = 0.15; // 成果報酬率
+
 function buildSimFlexMessage(sim) {
   const contents = [];
 
@@ -411,7 +420,7 @@ function buildSimFlexMessage(sim) {
       cornerRadius: '8px',
       margin: 'md',
       contents: [
-        { type: 'text', text: r.name, color: '#60a5fa', size: 'sm', weight: 'bold' },
+        { type: 'text', text: r.name, color: '#60a5fa', size: 'sm', weight: 'bold', wrap: true },
         { type: 'text', text: `最大 ${est}万円`, color: '#34d399', size: 'xl', weight: 'bold' },
         { type: 'text', text: `補助率: ${r.rate || '-'}`, color: '#94a3b8', size: 'xs' },
         ...(r.reason ? [{ type: 'text', text: r.reason, color: '#94a3b8', size: 'xxs', wrap: true }] : []),
@@ -419,19 +428,57 @@ function buildSimFlexMessage(sim) {
     });
   });
 
-  if (sim.totalEstimated) {
+  // 合計と手数料計算
+  const total = parseInt(sim.totalEstimated) || 0;
+  const successFee = Math.round(total * FEE_RATE);
+  const totalFee = FEE_INITIAL + successFee;
+  const netAmount = total - totalFee;
+
+  if (total > 0) {
+    // 合計受給額
     contents.push({
-      type: 'box', layout: 'vertical', paddingAll: '12px', margin: 'md',
-      backgroundColor: '#065f46', cornerRadius: '8px',
+      type: 'box', layout: 'vertical', paddingAll: '12px', margin: 'lg',
+      backgroundColor: '#1e3a8a', cornerRadius: '8px',
       contents: [
-        { type: 'text', text: '合計 最大受給額', color: '#6ee7b7', size: 'xs' },
-        { type: 'text', text: `最大 ${sim.totalEstimated}万円`, color: '#34d399', size: 'xxl', weight: 'bold' },
+        { type: 'text', text: '合計 最大受給額', color: '#93c5fd', size: 'xs' },
+        { type: 'text', text: `最大 ${total}万円`, color: '#bfdbfe', size: 'xxl', weight: 'bold' },
+      ],
+    });
+
+    // 弊社手数料
+    contents.push({
+      type: 'box', layout: 'vertical', paddingAll: '12px', margin: 'sm',
+      backgroundColor: '#1e293b', cornerRadius: '8px',
+      contents: [
+        { type: 'text', text: '弊社手数料', color: '#94a3b8', size: 'xs', weight: 'bold' },
+        { type: 'box', layout: 'horizontal', margin: 'sm', contents: [
+          { type: 'text', text: '着手金', color: '#94a3b8', size: 'xs', flex: 3 },
+          { type: 'text', text: `${FEE_INITIAL}万円`, color: '#e2e8f0', size: 'xs', flex: 2, align: 'end' },
+        ]},
+        { type: 'box', layout: 'horizontal', margin: 'xs', contents: [
+          { type: 'text', text: `成果報酬（${Math.round(FEE_RATE * 100)}%）`, color: '#94a3b8', size: 'xs', flex: 3 },
+          { type: 'text', text: `${successFee}万円`, color: '#e2e8f0', size: 'xs', flex: 2, align: 'end' },
+        ]},
+        { type: 'box', layout: 'horizontal', margin: 'sm', paddingTop: 'sm', contents: [
+          { type: 'text', text: '手数料合計', color: '#cbd5e1', size: 'sm', weight: 'bold', flex: 3 },
+          { type: 'text', text: `${totalFee}万円`, color: '#cbd5e1', size: 'sm', weight: 'bold', flex: 2, align: 'end' },
+        ]},
+      ],
+    });
+
+    // お手元に残る金額
+    contents.push({
+      type: 'box', layout: 'vertical', paddingAll: '14px', margin: 'sm',
+      backgroundColor: '#065f46', cornerRadius: '10px',
+      contents: [
+        { type: 'text', text: 'お手元に残る金額', color: '#6ee7b7', size: 'xs', weight: 'bold' },
+        { type: 'text', text: `最大 ${netAmount}万円`, color: '#34d399', size: 'xxl', weight: 'bold' },
       ],
     });
   }
 
   return {
-    type: 'flex', altText: `診断結果: 合計最大${sim.totalEstimated || '?'}万円`,
+    type: 'flex', altText: `診断結果: 手残り最大${netAmount || '?'}万円`,
     contents: {
       type: 'bubble', size: 'giga',
       styles: { body: { backgroundColor: '#0f172a' } },
