@@ -133,12 +133,42 @@ const SYSTEM_PROMPT = `あなたは日本国内の補助金・助成金に精通
 const GREETING = `友だち登録ありがとうございます！
 補助金・助成金の無料診断サービスです。
 
-どちらの診断をご希望ですか？
+下のボタンから診断方法を選んでください！
 
 ① サクッと簡易診断（3分）
-② じっくり詳細診断（5分）
+② じっくり詳細診断（5分）`;
 
-番号でお答えください！`;
+function buildQuickReply(items) {
+  return {
+    items: items.map(item => ({
+      type: 'action',
+      action: {
+        type: 'message',
+        label: item.label,
+        text: item.text,
+      },
+    })),
+  };
+}
+
+const GREETING_QUICK_REPLY = buildQuickReply([
+  { label: '簡易診断（3分）', text: '簡易診断を始めたい' },
+  { label: '詳細診断（5分）', text: '詳細診断を始めたい' },
+  { label: '補助金について質問', text: '補助金について質問したい' },
+  { label: 'Zoom面談を予約', text: 'Zoom面談を予約したい' },
+]);
+
+const POST_SIMULATION_QUICK_REPLY = buildQuickReply([
+  { label: 'Zoom面談を予約する', text: 'Zoom面談を予約したい' },
+  { label: '別の補助金も知りたい', text: '別の補助金も知りたい' },
+  { label: '質問する', text: '質問があります' },
+  { label: 'もう一度診断する', text: 'リセット' },
+]);
+
+const DURING_DIAGNOSIS_QUICK_REPLY = buildQuickReply([
+  { label: '一旦やめる', text: 'リセット' },
+  { label: 'スキップ', text: 'わからない・スキップ' },
+]);
 
 function verifySignature(body, signature) {
   const hash = crypto.createHmac('SHA256', LINE_SECRET).update(body).digest('base64');
@@ -384,7 +414,11 @@ export default async function handler(req, res) {
       await upsertConversation(userId, displayName, [], null, {
         followed_at: new Date().toISOString(),
       });
-      await replyToLine(event.replyToken, [{ type: 'text', text: GREETING }]);
+      await replyToLine(event.replyToken, [{
+        type: 'text',
+        text: GREETING,
+        quickReply: GREETING_QUICK_REPLY,
+      }]);
       // Day 0 の追加配信をスケジュール
       await scheduleDay0Messages(userId);
       continue;
@@ -405,7 +439,11 @@ export default async function handler(req, res) {
         diagnosis_completed_at: null,
         step_index: 0,
       });
-      await replyToLine(event.replyToken, [{ type: 'text', text: GREETING }]);
+      await replyToLine(event.replyToken, [{
+        type: 'text',
+        text: GREETING,
+        quickReply: GREETING_QUICK_REPLY,
+      }]);
       continue;
     }
 
@@ -462,6 +500,21 @@ export default async function handler(req, res) {
     }
 
     if (replyMessages.length > 5) replyMessages.splice(5);
+
+    // 最後のメッセージにQuick Replyを付ける
+    if (replyMessages.length > 0) {
+      const lastMsg = replyMessages[replyMessages.length - 1];
+      if (sim) {
+        // シミュレーション後はZoom予約・追加質問のボタン
+        lastMsg.quickReply = POST_SIMULATION_QUICK_REPLY;
+      } else if (mode && !sim) {
+        // 診断中は途中離脱・スキップのボタン
+        lastMsg.quickReply = DURING_DIAGNOSIS_QUICK_REPLY;
+      } else if (!mode) {
+        // モード未選択時は最初のメニュー
+        lastMsg.quickReply = GREETING_QUICK_REPLY;
+      }
+    }
 
     if (replyMessages.length > 0) {
       await replyToLine(event.replyToken, replyMessages);

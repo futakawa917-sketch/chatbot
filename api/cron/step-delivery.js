@@ -154,7 +154,29 @@ async function hasBookedZoom(userId) {
   }
 }
 
-async function pushMessage(userId, text) {
+function buildQuickReplyForFollow() {
+  return {
+    items: [
+      { type: 'action', action: { type: 'message', label: '簡易診断（3分）', text: '簡易診断を始めたい' } },
+      { type: 'action', action: { type: 'message', label: '詳細診断（5分）', text: '詳細診断を始めたい' } },
+      { type: 'action', action: { type: 'message', label: '質問する', text: '補助金について質問したい' } },
+    ],
+  };
+}
+
+function buildQuickReplyForCompleted() {
+  return {
+    items: [
+      { type: 'action', action: { type: 'message', label: 'Zoom面談を予約する', text: 'Zoom面談を予約したい' } },
+      { type: 'action', action: { type: 'message', label: '別の補助金も知りたい', text: '別の補助金も知りたい' } },
+      { type: 'action', action: { type: 'message', label: '質問する', text: '質問があります' } },
+    ],
+  };
+}
+
+async function pushMessage(userId, text, quickReply = null) {
+  const message = { type: 'text', text };
+  if (quickReply) message.quickReply = quickReply;
   await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
     headers: {
@@ -163,7 +185,7 @@ async function pushMessage(userId, text) {
     },
     body: JSON.stringify({
       to: userId,
-      messages: [{ type: 'text', text }],
+      messages: [message],
     }),
   });
 }
@@ -219,7 +241,7 @@ async function processScheduledMessages() {
     }
 
     try {
-      await pushMessage(msg.line_user_id, msg.message_text);
+      await pushMessage(msg.line_user_id, msg.message_text, buildQuickReplyForFollow());
       await fetch(`${SUPABASE_URL}/rest/v1/scheduled_messages?id=eq.${msg.id}`, {
         method: 'PATCH',
         headers: {
@@ -286,7 +308,10 @@ export default async function handler(req, res) {
 
       if (elapsed >= nextStep.delayHours) {
         try {
-          await pushMessage(user.line_user_id, nextStep.text);
+          const quickReply = user.diagnosis_completed_at
+            ? buildQuickReplyForCompleted()
+            : buildQuickReplyForFollow();
+          await pushMessage(user.line_user_id, nextStep.text, quickReply);
           await updateStepIndex(user.line_user_id, stepIdx + 1);
           sent++;
         } catch (e) {
