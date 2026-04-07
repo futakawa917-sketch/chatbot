@@ -66,26 +66,83 @@ async function main() {
 
     // 5. CSVダウンロードボタンを探してクリック
     console.log('5. CSVダウンロード...');
-    const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
 
-    // ボタンのセレクタを試す（複数パターン）
-    const csvButton = await page.$('text=CSVダウンロード') ||
-                      await page.$('a:has-text("CSV")') ||
-                      await page.$('button:has-text("CSV")');
+    // ページHTMLを保存（デバッグ用）
+    const searchHtml = await page.content();
+    fs.writeFileSync('/tmp/izumi_search_page.html', searchHtml);
 
-    if (!csvButton) {
-      // ページのHTMLを保存してデバッグ
-      const html = await page.content();
-      fs.writeFileSync('/tmp/izumi_search_page.html', html);
-      throw new Error('CSVダウンロードボタンが見つかりません。ページHTMLを /tmp/izumi_search_page.html に保存しました');
+    // 「CSV」を含むすべての要素を探す
+    const csvElements = await page.locator('text=CSV').all();
+    console.log('   CSV関連要素数:', csvElements.length);
+
+    if (csvElements.length === 0) {
+      throw new Error('CSV関連要素が見つかりません');
     }
 
-    await csvButton.click();
-    const download = await downloadPromise;
+    // ボタンの情報を確認
+    for (let i = 0; i < csvElements.length; i++) {
+      const tag = await csvElements[i].evaluate(el => el.tagName);
+      const text = await csvElements[i].textContent();
+      console.log(`   要素[${i}]: ${tag} - ${text?.trim()}`);
+    }
 
-    const csvPath = '/tmp/izumi_subsidies.csv';
-    await download.saveAs(csvPath);
-    console.log('   CSVを保存:', csvPath);
+    // ダウンロード待機 + ボタンクリックを並列実行
+    const downloadPromise = page.waitForEvent('download', { timeout: 60000 }).catch(() => null);
+    const popupPromise = page.context().waitForEvent('page', { timeout: 60000 }).catch(() => null);
+
+    // CSVボタンをクリック（最初のものを使う）
+    await csvElements[0].scrollIntoViewIfNeeded();
+    await csvElements[0].click();
+
+    console.log('   クリック後待機...');
+    await page.waitForTimeout(3000);
+
+    // モーダルが出ていればOKボタンを押す
+    const confirmBtn = await page.$('button:has-text("OK")') ||
+                       await page.$('button:has-text("ダウンロード")') ||
+                       await page.$('text=ダウンロードする');
+    if (confirmBtn) {
+      console.log('   確認ボタンをクリック');
+      await confirmBtn.click();
+    }
+
+    // ダウンロード or 新しいページを待つ
+    const [download, popup] = await Promise.all([downloadPromise, popupPromise]);
+
+    let csvPath = '/tmp/izumi_subsidies.csv';
+    if (download) {
+      await download.saveAs(csvPath);
+      console.log('   CSVを保存（ダウンロードイベント）:', csvPath);
+    } else if (popup) {
+      console.log('   新しいページのURL:', popup.url());
+      const csvText = await popup.evaluate(() => document.body.innerText);
+      fs.writeFileSync(csvPath, csvText);
+      console.log('   CSVを保存（新しいページから）:', csvPath);
+    } else {
+      // 最終手段：現在のページの中身がCSVかチェック
+      const currentText = await page.evaluate(() => document.body.innerText);
+      if (currentText.includes(',') && currentText.length > 1000) {
+        fs.writeFileSync(csvPath, currentText);
+        console.log('   CSVを保存（現在のページから）:', csvPath);
+      } else {
+        // 全リンクからCSVのhrefを探す
+        const csvLinks = await page.$$eval('a', as =>
+          as.map(a => a.href).filter(h => h.toLowerCase().includes('csv') || h.includes('export'))
+        );
+        console.log('   CSV関連リンク:', csvLinks);
+        if (csvLinks.length > 0) {
+          // クッキー付きでfetch
+          const cookies = await context.cookies();
+          const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+          const r = await fetch(csvLinks[0], { headers: { Cookie: cookieStr } });
+          const txt = await r.text();
+          fs.writeFileSync(csvPath, txt);
+          console.log('   CSVを保存（fetch経由）:', csvPath, 'サイズ:', txt.length);
+        } else {
+          throw new Error('CSVのダウンロードに失敗しました');
+        }
+      }
+    }
 
     // 6. CSV内容を読み込み
     const csvContent = fs.readFileSync(csvPath, 'utf-8');
