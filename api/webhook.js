@@ -590,12 +590,78 @@ function buildSimFlexMessage(sim) {
   };
 }
 
+async function extractStructuredInfo(messages) {
+  try {
+    const conversationText = messages
+      .map(m => `${m.role === 'user' ? 'ユーザー' : 'ボット'}: ${m.content.replace(/---SIMULATION_START---[\s\S]*?---SIMULATION_END---/g, '[シミュレーション結果]')}`)
+      .join('\n');
+
+    const extractPrompt = `以下の会話から事業者情報を抽出してJSON形式のみで返してください。説明文や\`\`\`は一切付けないこと。
+不明な項目はnullにしてください。
+
+抽出フィールド：
+- company_name: 会社名または屋号名
+- representative: 代表者名
+- business_type: 業種（製造業/サービス業/小売業など）
+- entity_type: 法人 or 個人事業主
+- established: 設立日（例: 2020年4月）
+- location: 所在地（都道府県・市区町村）
+- employees_full: 正社員数（数字のみ）
+- employees_part: アルバイト・パート数（数字のみ）
+- invoice_registered: インボイス登録（登録済み/未登録/不明）
+- subsidy_experience: 補助金申請経験（あり/なし、ありの場合は補助金名）
+- business_content: 事業内容（具体的に）
+- desired_use: やりたいこと（補助金で何をしたいか）
+
+会話：
+${conversationText}
+
+JSON:`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1000,
+        system: '会話から事業者情報を抽出するアシスタント。必ず指定されたJSONのみを返し、前後に説明や```などを一切含めない。',
+        messages: [{ role: 'user', content: extractPrompt }],
+      }),
+    });
+    const data = await res.json();
+    const text = data.content ? data.content.map(c => c.text || '').join('') : '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return {};
+    return JSON.parse(jsonMatch[0]);
+  } catch (e) {
+    return {};
+  }
+}
+
 async function saveToLog(userId, displayName, sim, messages) {
+  const extracted = await extractStructuredInfo(messages);
+
   const logData = {
     line_user_id: userId,
     line_display_name: displayName,
     simulation_results: sim,
     full_conversation: messages,
+    company_name: extracted.company_name ?? null,
+    representative: extracted.representative ?? null,
+    business_type: extracted.business_type ?? null,
+    entity_type: extracted.entity_type ?? null,
+    established: extracted.established ?? null,
+    location: extracted.location ?? null,
+    employees_full: extracted.employees_full != null ? String(extracted.employees_full) : null,
+    employees_part: extracted.employees_part != null ? String(extracted.employees_part) : null,
+    invoice_registered: extracted.invoice_registered ?? null,
+    subsidy_experience: extracted.subsidy_experience ?? null,
+    business_content: extracted.business_content ?? null,
+    desired_use: extracted.desired_use ?? null,
   };
 
   if (SUPABASE_URL && SUPABASE_ANON_KEY) {
@@ -615,7 +681,16 @@ async function saveToLog(userId, displayName, sim, messages) {
     await fetch(GOOGLE_SHEET_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...logData, simulationResults: sim, fullConversation: messages }),
+      body: JSON.stringify({
+        ...logData,
+        simulationResults: sim,
+        fullConversation: messages,
+        companyName: extracted.company_name,
+        businessContent: extracted.business_content,
+        desiredUse: extracted.desired_use,
+        employeesFull: extracted.employees_full,
+        employeesPart: extracted.employees_part,
+      }),
     }).catch(() => {});
   }
 }
