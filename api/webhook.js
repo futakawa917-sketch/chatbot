@@ -1107,7 +1107,14 @@ async function processEvent(event) {
 
     // ヒアリング後半（10回以上の発言）はSonnetで高精度生成
     const useSonnet = userMessageCount >= 10;
-    const claudeResponse = await callClaude(messages, subsidyContext, useSonnet);
+
+    // ユーザー発言が一定数を超えたら強制的にシミュレーション結果を出す
+    let forceContext = '';
+    if (userMessageCount >= 12) {
+      forceContext = '\n\n【★最重要・強制ルール★】\nユーザーは既に十分な情報を提供しています。これ以上の質問はせず、必ず今すぐシミュレーション結果（---SIMULATION_START--- ～ ---SIMULATION_END---）を出力してください。確認質問は禁止です。今までのヒアリング情報だけで結果を生成すること。';
+    }
+
+    const claudeResponse = await callClaude(messages, subsidyContext + forceContext, useSonnet);
 
     messages.push({ role: 'assistant', content: claudeResponse });
 
