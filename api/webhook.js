@@ -412,47 +412,81 @@ async function getLineProfile(userId) {
 }
 
 async function getRelevantSubsidies(prefecture) {
-  if (!SUPABASE_URL) return [];
+  if (!SUPABASE_URL) return { jgrants: [], izumi: [] };
   try {
     const nowIso = new Date().toISOString();
-    const params = new URLSearchParams();
-    params.set('select', 'title,subsidy_max_limit,subsidy_rate,target_area_search,target_number_of_employees,use_purpose,industry,acceptance_end_datetime,institution_name,front_subsidy_detail_page_url');
-    params.set('acceptance_end_datetime', `gte.${nowIso}`);
-    params.set('order', 'subsidy_max_limit.desc');
-    params.set('limit', '1000');
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/jgrants_subsidies?${params}`, {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-    });
-    if (!res.ok) return [];
-    const all = await res.json();
-    if (!Array.isArray(all)) return [];
+    // Jグランツ
+    const jgrantsParams = new URLSearchParams();
+    jgrantsParams.set('select', 'title,subsidy_max_limit,subsidy_rate,target_area_search,target_number_of_employees,use_purpose,industry,acceptance_end_datetime,institution_name,front_subsidy_detail_page_url');
+    jgrantsParams.set('acceptance_end_datetime', `gte.${nowIso}`);
+    jgrantsParams.set('order', 'subsidy_max_limit.desc');
+    jgrantsParams.set('limit', '1000');
 
-    // 全国 or 該当地域の補助金にフィルタ
-    const filtered = all.filter(s => {
+    // 情報の泉
+    const izumiParams = new URLSearchParams();
+    izumiParams.set('select', 'title,max_amount,target_area,application_period,difficulty,source_type,detail_url');
+    izumiParams.set('limit', '1000');
+
+    const [jgrantsRes, izumiRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/jgrants_subsidies?${jgrantsParams}`, {
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      }),
+      fetch(`${SUPABASE_URL}/rest/v1/izumi_subsidies?${izumiParams}`, {
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      }),
+    ]);
+
+    const jgrantsAll = jgrantsRes.ok ? await jgrantsRes.json() : [];
+    const izumiAll = izumiRes.ok ? await izumiRes.json() : [];
+
+    // Jグランツは地域フィルタ
+    const jgrantsFiltered = (Array.isArray(jgrantsAll) ? jgrantsAll : []).filter(s => {
       if (!s.target_area_search) return true;
       if (s.target_area_search.includes('全国')) return true;
       if (prefecture && s.target_area_search.includes(prefecture)) return true;
       return false;
     });
 
-    return filtered;
+    // 情報の泉も地域フィルタ
+    const izumiFiltered = (Array.isArray(izumiAll) ? izumiAll : []).filter(s => {
+      if (!s.target_area) return true;
+      if (s.target_area.includes('全国')) return true;
+      if (prefecture && s.target_area.includes(prefecture)) return true;
+      return false;
+    });
+
+    return { jgrants: jgrantsFiltered, izumi: izumiFiltered };
   } catch (e) {
-    return [];
+    return { jgrants: [], izumi: [] };
   }
 }
 
-function buildSubsidyContext(subsidies) {
-  if (subsidies.length === 0) return '';
-  const lines = subsidies.map(s => {
-    const max = s.subsidy_max_limit ? `最大${Math.round(s.subsidy_max_limit / 10000)}万円` : '上限額不明';
-    const deadline = s.acceptance_end_datetime ? `（締切: ${s.acceptance_end_datetime.slice(0, 10)}）` : '';
-    return `- ${s.title} | ${max} | 補助率: ${s.subsidy_rate || '-'} | 対象: ${s.target_number_of_employees || '-'} | 地域: ${s.target_area_search || '-'} ${deadline}`;
-  }).join('\n');
-  return `\n\n【現在公募中の補助金（Jグランツ最新データ）】\n${lines}\n\n上記は公式の最新データです。シミュレーション結果には、ユーザーの状況に該当する制度をこの中から優先的に選んで提案してください。`;
+function buildSubsidyContext(data) {
+  const { jgrants = [], izumi = [] } = data;
+  if (jgrants.length === 0 && izumi.length === 0) return '';
+
+  let context = '\n\n【最新の補助金・助成金データベース】\n';
+
+  if (jgrants.length > 0) {
+    context += `\n■ Jグランツ（デジタル庁公式・国の制度）${jgrants.length}件:\n`;
+    context += jgrants.slice(0, 100).map(s => {
+      const max = s.subsidy_max_limit ? `最大${Math.round(s.subsidy_max_limit / 10000)}万円` : '上限不明';
+      const deadline = s.acceptance_end_datetime ? `締切${s.acceptance_end_datetime.slice(0, 10)}` : '';
+      return `- ${s.title} | ${max} | ${s.subsidy_rate || '-'} | ${s.target_number_of_employees || '-'} | ${s.target_area_search || '-'} | ${deadline}`;
+    }).join('\n');
+  }
+
+  if (izumi.length > 0) {
+    context += `\n\n■ 情報の泉（自治体・財団等を含む）${izumi.length}件:\n`;
+    context += izumi.slice(0, 100).map(s => {
+      return `- ${s.title} | ${s.max_amount || '上限不明'} | 難易度${s.difficulty || '-'} | ${s.target_area || '-'} | ${s.source_type || '-'}`;
+    }).join('\n');
+  }
+
+  context += `\n\n上記が現在の最新データです。シミュレーション結果には、ユーザーの状況（業種・規模・所在地・雇用状況等）に該当する制度を、この中から優先的に選んで提案してください。Jグランツは国の主要制度、情報の泉は自治体や財団の細かい制度をカバーしています。両方を組み合わせて漏れなく提案すること。`;
+
+  return context;
 }
 
 async function callClaude(messages, extraSystemContext = '') {
