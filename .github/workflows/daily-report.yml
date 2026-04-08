@@ -1,0 +1,18 @@
+name: Daily Sales Report
+
+on:
+  schedule:
+    # 毎日 JST 8:00 (UTC 23:00 前日)
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send daily report
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 60 \
+            https://chatbot-tau-five-39.vercel.app/api/cron/daily-report

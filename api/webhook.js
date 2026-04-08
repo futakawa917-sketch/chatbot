@@ -499,7 +499,7 @@ function buildSubsidyContext(data) {
   return context;
 }
 
-async function callClaude(messages, extraSystemContext = '') {
+async function callClaude(messages, extraSystemContext = '', useSonnet = false) {
   // 直近30メッセージのみに制限（古い会話履歴を切り捨て）
   const trimmedMessages = messages.length > 30 ? messages.slice(-30) : messages;
 
@@ -515,6 +515,8 @@ async function callClaude(messages, extraSystemContext = '') {
     systemBlocks.push({ type: 'text', text: extraSystemContext });
   }
 
+  const model = useSonnet ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001';
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -523,7 +525,7 @@ async function callClaude(messages, extraSystemContext = '') {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model,
       max_tokens: 4000,
       system: systemBlocks,
       messages: trimmedMessages,
@@ -603,10 +605,19 @@ async function notifyToSales(type, info) {
     icon = '🔥';
   }
 
+  // 温度感アイコン
+  let tempEmoji = '';
+  if (info.leadTemperature === 'Hot') tempEmoji = '🔥🔥🔥';
+  else if (info.leadTemperature === 'Warm') tempEmoji = '🔥🔥';
+  else if (info.leadTemperature === 'Cold') tempEmoji = '❄️';
+
   const lines = [
     `${icon} ${title}`,
-    '',
   ];
+  if (info.leadTemperature) {
+    lines.push(`${tempEmoji} ${info.leadTemperature} (スコア: ${info.leadScore}/100)`);
+  }
+  lines.push('');
   if (info.lineDisplayName) lines.push(`LINE名: ${info.lineDisplayName}`);
   if (info.companyName) lines.push(`会社: ${info.companyName}`);
   if (info.representative) lines.push(`代表: ${info.representative}`);
@@ -803,14 +814,57 @@ JSON:`;
   }
 }
 
+function calculateLeadScore(extracted, sim) {
+  let score = 0;
+  // 受給額（最大50点）
+  const total = parseInt(sim?.totalEstimated) || 0;
+  if (total >= 1000) score += 50;
+  else if (total >= 500) score += 40;
+  else if (total >= 300) score += 30;
+  else if (total >= 100) score += 20;
+  else if (total > 0) score += 10;
+
+  // 連絡先の有無（最大20点）
+  if (extracted.phone) score += 10;
+  if (extracted.email) score += 10;
+
+  // 情報の詳細度（最大20点）
+  const fields = [
+    extracted.company_name, extracted.representative,
+    extracted.business_content, extracted.location,
+    extracted.employees_full, extracted.invoice_registered,
+  ];
+  score += fields.filter(Boolean).length * 3;
+
+  // やりたいことが明確（最大10点）
+  if (extracted.desired_use && extracted.desired_use.length > 10) score += 10;
+  else if (extracted.desired_use) score += 5;
+
+  // 法人形態加点
+  if (extracted.entity_type?.includes('法人')) score += 5;
+
+  return Math.min(score, 100);
+}
+
+function getTemperature(score) {
+  if (score >= 70) return 'Hot';
+  if (score >= 40) return 'Warm';
+  return 'Cold';
+}
+
 async function saveToLog(userId, displayName, sim, messages) {
   const extracted = await extractStructuredInfo(messages);
+
+  const leadScore = calculateLeadScore(extracted, sim);
+  const leadTemperature = getTemperature(leadScore);
 
   const logData = {
     line_user_id: userId,
     line_display_name: displayName,
     simulation_results: sim,
     full_conversation: messages,
+    lead_score: leadScore,
+    lead_temperature: leadTemperature,
     company_name: extracted.company_name ?? null,
     phone: extracted.phone ?? null,
     email: extracted.email ?? null,
@@ -873,6 +927,8 @@ async function saveToLog(userId, displayName, sim, messages) {
     desiredUse: extracted.desired_use,
     totalEstimated: sim?.totalEstimated,
     subsidies,
+    leadScore,
+    leadTemperature,
   });
 }
 
@@ -1036,7 +1092,9 @@ async function processEvent(event) {
       subsidyContext = buildSubsidyContext(relevantSubsidies);
     }
 
-    const claudeResponse = await callClaude(messages, subsidyContext);
+    // ヒアリング後半（10回以上の発言）はSonnetで高精度生成
+    const useSonnet = userMessageCount >= 10;
+    const claudeResponse = await callClaude(messages, subsidyContext, useSonnet);
 
     messages.push({ role: 'assistant', content: claudeResponse });
 
