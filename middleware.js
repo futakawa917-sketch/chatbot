@@ -1,7 +1,7 @@
 // Vercel Edge Middleware: ダッシュボードページにBasic認証をかける
 
 export const config = {
-  matcher: ['/', '/index.html', '/dashboard.html', '/sales.html', '/dashboard', '/sales'],
+  matcher: ['/', '/index.html', '/dashboard.html', '/sales.html', '/logs.html', '/dashboard', '/sales', '/logs'],
 };
 
 const COOKIE_NAME = 'dashboard_auth';
