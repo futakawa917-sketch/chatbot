@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "sync-izumi": "node sync-izumi.js"
+    "scrape-izumi": "node scrape-izumi.js"
   },
   "dependencies": {
     "playwright": "^1.48.0"

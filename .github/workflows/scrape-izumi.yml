@@ -1,4 +1,4 @@
-name: Sync 情報の泉
+name: Scrape 情報の泉
 
 on:
   schedule:
@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync:
+  scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -25,22 +25,23 @@ jobs:
         working-directory: scripts
         run: npx playwright install --with-deps chromium
 
-      - name: Run sync script
+      - name: Run scrape script
         working-directory: scripts
         env:
           IZUMI_USERNAME: ${{ secrets.IZUMI_USERNAME }}
           IZUMI_PASSWORD: ${{ secrets.IZUMI_PASSWORD }}
           IZUMI_LOGIN_URL: ${{ secrets.IZUMI_LOGIN_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          UPLOAD_ENDPOINT: https://chatbot-tau-five-39.vercel.app/api/upload-izumi-csv
-        run: node sync-izumi.js
+          UPLOAD_ENDPOINT: https://chatbot-tau-five-39.vercel.app/api/upload-izumi
+          MAX_PAGES: '50'
+        run: node scrape-izumi.js
 
-      - name: Upload error screenshot if failed
+      - name: Upload error artifacts if failed
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: error-screenshot
+          name: error-artifacts
           path: |
             /tmp/izumi_error.png
-            /tmp/izumi_search_page.html
+            /tmp/izumi_error.html
           if-no-files-found: ignore
