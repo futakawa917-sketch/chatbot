@@ -573,6 +573,23 @@ async function pushToLine(userId, messages) {
   } catch (e) {}
 }
 
+async function notifyError(context, error) {
+  if (SALES_NOTIFY_USER_IDS.length === 0) return;
+  const text = [
+    '⚠️ システムエラー発生',
+    '',
+    `場所: ${context}`,
+    `エラー: ${error?.message || error}`,
+    `時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+    '',
+    'ダッシュボードで確認してください',
+    'https://chatbot-tau-five-39.vercel.app/dashboard.html',
+  ].join('\n');
+
+  // 1人目のみに通知（全員に送ると煩雑）
+  await pushToLine(SALES_NOTIFY_USER_IDS[0], [{ type: 'text', text }]).catch(() => {});
+}
+
 async function notifyToSales(type, info) {
   if (SALES_NOTIFY_USER_IDS.length === 0) return;
 
@@ -875,6 +892,16 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  try {
+    return await handleWebhook(req, res);
+  } catch (e) {
+    console.error('Webhook fatal error:', e);
+    notifyError('webhook handler', e).catch(() => {});
+    return res.status(200).json({ status: 'error', message: e.message });
+  }
+}
+
+async function handleWebhook(req, res) {
   if (req.method === 'GET') {
     return res.status(200).json({ status: 'ok' });
   }
@@ -895,8 +922,20 @@ export default async function handler(req, res) {
   const events = parsed.events || [];
 
   for (const event of events) {
+    try {
+      await processEvent(event);
+    } catch (e) {
+      console.error('Event process error:', e);
+      notifyError(`event ${event.type}`, e).catch(() => {});
+    }
+  }
+
+  return res.status(200).json({ status: 'ok' });
+}
+
+async function processEvent(event) {
     const userId = event.source?.userId;
-    if (!userId) continue;
+    if (!userId) return;
 
     if (event.type === 'follow') {
       // 友だち追加時：プロフィール取得＋DB記録＋あいさつ送信を並列実行
@@ -913,11 +952,11 @@ export default async function handler(req, res) {
         }]),
         scheduleDay0Messages(userId),
       ]);
-      continue;
+      return;
     }
 
-    if (event.type === 'unfollow') continue;
-    if (event.type !== 'message' || event.message.type !== 'text') continue;
+    if (event.type === 'unfollow') return;
+    if (event.type !== 'message' || event.message.type !== 'text') return;
 
     const userText = event.message.text.trim();
 
@@ -981,7 +1020,7 @@ export default async function handler(req, res) {
         text: GREETING,
         quickReply: GREETING_QUICK_REPLY,
       }]);
-      continue;
+      return;
     }
 
     messages.push({ role: 'user', content: userText });
@@ -1066,7 +1105,4 @@ export default async function handler(req, res) {
     if (replyMessages.length > 0) {
       await replyToLine(event.replyToken, replyMessages);
     }
-  }
-
-  return res.status(200).json({ status: 'ok' });
 }
