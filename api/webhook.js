@@ -469,22 +469,25 @@ function buildSubsidyContext(data) {
   let context = '\n\n【最新の補助金・助成金データベース】\n';
 
   if (jgrants.length > 0) {
-    context += `\n■ Jグランツ（デジタル庁公式・国の制度）${jgrants.length}件:\n`;
-    context += jgrants.slice(0, 100).map(s => {
+    // 上限額の高い順 30件
+    const top = jgrants.slice(0, 30);
+    context += `\n■ Jグランツ（国の制度）合計${jgrants.length}件中、上位30件:\n`;
+    context += top.map(s => {
       const max = s.subsidy_max_limit ? `最大${Math.round(s.subsidy_max_limit / 10000)}万円` : '上限不明';
-      const deadline = s.acceptance_end_datetime ? `締切${s.acceptance_end_datetime.slice(0, 10)}` : '';
-      return `- ${s.title} | ${max} | ${s.subsidy_rate || '-'} | ${s.target_number_of_employees || '-'} | ${s.target_area_search || '-'} | ${deadline}`;
+      return `- ${s.title} | ${max} | ${s.subsidy_rate || '-'} | ${s.target_area_search || '-'}`;
     }).join('\n');
   }
 
   if (izumi.length > 0) {
-    context += `\n\n■ 情報の泉（自治体・財団等を含む）${izumi.length}件:\n`;
-    context += izumi.slice(0, 100).map(s => {
-      return `- ${s.title} | ${s.max_amount || '上限不明'} | 難易度${s.difficulty || '-'} | ${s.target_area || '-'} | ${s.source_type || '-'}`;
+    // 30件のみ
+    const top = izumi.slice(0, 30);
+    context += `\n\n■ 情報の泉（自治体・財団含む）合計${izumi.length}件中、30件:\n`;
+    context += top.map(s => {
+      return `- ${s.title} | ${s.max_amount || '上限不明'} | ${s.target_area || '-'}`;
     }).join('\n');
   }
 
-  context += `\n\n上記が現在の最新データです。シミュレーション結果には、ユーザーの状況（業種・規模・所在地・雇用状況等）に該当する制度を、この中から優先的に選んで提案してください。Jグランツは国の主要制度、情報の泉は自治体や財団の細かい制度をカバーしています。両方を組み合わせて漏れなく提案すること。`;
+  context += `\n\n上記が最新データです。ユーザーの業種・規模・地域に該当する制度を選んで提案してください。データベースにない制度（厚労省助成金など）も知っている範囲で含めてOKです。`;
 
   return context;
 }
@@ -532,15 +535,18 @@ function cleanText(text) {
   cleaned = cleaned.replace(/---SIMULATION_START---[\s\S]*$/, '').trim();
   // 単独の JSON っぽい塊（{ "results": ... ）も除去
   cleaned = cleaned.replace(/\{[\s\S]*?"results"[\s\S]*$/, '').trim();
-  // あらゆる種類のクォート文字を除去（半角・全角・スマートクォート）
-  cleaned = cleaned.replace(/[\u0022\u201C\u201D\u201E\u201F\u2033\u2036\uFF02\u00AB\u00BB]/g, '');
-  // シングルクォートも会話で使われがちなので残す（消すと「あの」など壊れる可能性低い）
-  // バッククォートも除去
-  cleaned = cleaned.replace(/[`]/g, '');
-  // マークダウンの**を除去
+
+  // あらゆる欧文クォート文字を全て除去（半角・全角・スマート）
+  // 日本語のカギカッコ「」『』は残す
+  cleaned = cleaned.replace(/["""„‟″‶"«»'‹›`]/g, '');
+
+  // マークダウンの**強調を除去（中身は残す）
   cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
-  // マークダウンの##を除去
+  cleaned = cleaned.replace(/\*([^*\n]+)\*/g, '$1');
+  // マークダウンの##見出しを除去
   cleaned = cleaned.replace(/^#+\s*/gm, '');
+  // 連続する空白を1つに
+  cleaned = cleaned.replace(/[ \t]+/g, ' ');
   return cleaned.trim();
 }
 
