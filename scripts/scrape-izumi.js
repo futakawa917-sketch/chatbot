@@ -162,13 +162,16 @@ async function main() {
     });
     console.log('   ページネーション候補:', JSON.stringify(paginationInfo.slice(0, 20)));
 
-    // URLパターンを見つける
+    // URLパターンを見つける（page=N を含む有効なURL）
     let pageUrlPattern = null;
-    const numericLink = paginationInfo.find(p => /^\d+$/.test(p.text) && p.href);
+    const numericLink = paginationInfo.find(p =>
+      /^\d+$/.test(p.text) &&
+      parseInt(p.text) > 1 &&
+      p.href &&
+      p.href.includes('page=')
+    );
     if (numericLink) {
-      // URLの中にページ番号があるかチェック
-      const url = new URL(numericLink.href);
-      pageUrlPattern = numericLink.href.replace(numericLink.text, '__PAGE__');
+      pageUrlPattern = numericLink.href.replace(/page=\d+/, 'page=__PAGE__');
       console.log('   URLパターン:', pageUrlPattern);
     }
 
