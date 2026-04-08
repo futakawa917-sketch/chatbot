@@ -132,13 +132,87 @@ async function main() {
     const allItems = [];
     const seen = new Set();
 
-    for (let p = 1; p <= MAX_PAGES; p++) {
+    // 1ページ目の解析後、ページネーションのリンク構造を特定
+    console.log('5. ページ1を解析中...');
+    await page.waitForTimeout(1500);
+    let items = await scrapeCurrentPage(page);
+    console.log(`   ${items.length}件取得`);
+    for (const item of items) {
+      const key = item.title + (item.detail_url || '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        allItems.push(item);
+      }
+    }
+
+    // ページネーションのHTMLを調査
+    const paginationInfo = await page.evaluate(() => {
+      const allLinks = Array.from(document.querySelectorAll('a'));
+      const candidates = allLinks
+        .filter(a => {
+          const txt = (a.textContent || '').trim();
+          return /^\d+$/.test(txt) || txt.includes('次') || txt.includes('»') || txt.includes('›');
+        })
+        .map(a => ({
+          text: (a.textContent || '').trim(),
+          href: a.href,
+          onclick: a.getAttribute('onclick'),
+        }));
+      return candidates;
+    });
+    console.log('   ページネーション候補:', JSON.stringify(paginationInfo.slice(0, 20)));
+
+    // URLパターンを見つける
+    let pageUrlPattern = null;
+    const numericLink = paginationInfo.find(p => /^\d+$/.test(p.text) && p.href);
+    if (numericLink) {
+      // URLの中にページ番号があるかチェック
+      const url = new URL(numericLink.href);
+      pageUrlPattern = numericLink.href.replace(numericLink.text, '__PAGE__');
+      console.log('   URLパターン:', pageUrlPattern);
+    }
+
+    // 全ページ巡回
+    for (let p = 2; p <= MAX_PAGES; p++) {
       console.log(`5. ページ${p}を解析中...`);
+
+      let navigated = false;
+      if (pageUrlPattern) {
+        // URLパターンで直接ジャンプ
+        const targetUrl = pageUrlPattern.replace('__PAGE__', String(p));
+        try {
+          await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 });
+          navigated = true;
+        } catch (e) {
+          console.log('   URL移動失敗:', e.message);
+        }
+      } else {
+        // クリック方式
+        const clicked = await page.evaluate((pageNum) => {
+          const links = Array.from(document.querySelectorAll('a'));
+          for (const link of links) {
+            const txt = (link.textContent || '').trim();
+            if (txt === String(pageNum) || txt.includes('次')) {
+              link.click();
+              return true;
+            }
+          }
+          return false;
+        }, p);
+        if (clicked) {
+          await page.waitForTimeout(2000);
+          await page.waitForLoadState('networkidle').catch(() => {});
+          navigated = true;
+        }
+      }
+
+      if (!navigated) {
+        console.log('   次ページに移動できず、終了');
+        break;
+      }
+
       await page.waitForTimeout(1500);
-
-      const items = await scrapeCurrentPage(page);
-      console.log(`   ${items.length}件取得`);
-
+      items = await scrapeCurrentPage(page);
       let newCount = 0;
       for (const item of items) {
         const key = item.title + (item.detail_url || '');
@@ -147,32 +221,7 @@ async function main() {
         allItems.push(item);
         newCount++;
       }
-      console.log(`   新規 ${newCount}件、累計 ${allItems.length}件`);
-
-      // 次ページボタンを探す
-      const clicked = await page.evaluate(() => {
-        // ページネーション内の全リンクを取得
-        const links = Array.from(document.querySelectorAll('a, button'));
-        // 「次」「›」「»」を含むリンク
-        for (const link of links) {
-          const txt = (link.textContent || '').trim();
-          if ((txt === '次»' || txt === '次>' || txt === '次' || txt === '›' || txt === '»' || txt === 'next' || txt.includes('次へ')) && !link.classList.contains('disabled')) {
-            link.click();
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (clicked) {
-        await page.waitForTimeout(2000);
-        await page.waitForLoadState('networkidle').catch(() => {});
-      }
-
-      if (!clicked) {
-        console.log('   次ページなし、終了');
-        break;
-      }
+      console.log(`   ${items.length}件取得、新規 ${newCount}件、累計 ${allItems.length}件`);
 
       if (newCount === 0) {
         console.log('   新規データなし、終了');
