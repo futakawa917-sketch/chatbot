@@ -170,7 +170,8 @@ async function main() {
       p.href.includes('page=')
     );
     if (numericLink) {
-      pageUrlPattern = numericLink.href.replace(/page=\d+/, 'page=__PAGE__');
+      // per_page= に影響しないよう、?page= か &page= のみ置換
+      pageUrlPattern = numericLink.href.replace(/([?&])page=\d+/, '$1page=__PAGE__');
       console.log('   URLパターン:', pageUrlPattern);
     } else {
       // フォールバック：デフォルトURLパターンを使う
