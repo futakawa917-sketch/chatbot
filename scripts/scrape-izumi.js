@@ -145,22 +145,21 @@ async function main() {
       }
     }
 
-    // ページネーションのHTMLを調査
+    // ページネーションのHTMLを調査（数字 or 短いナビゲーションテキストのみ）
     const paginationInfo = await page.evaluate(() => {
       const allLinks = Array.from(document.querySelectorAll('a'));
-      const candidates = allLinks
+      return allLinks
         .filter(a => {
           const txt = (a.textContent || '').trim();
-          return /^\d+$/.test(txt) || txt.includes('次') || txt.includes('»') || txt.includes('›');
+          if (txt.length > 10) return false; // 長いテキストは除外
+          return /^\d+$/.test(txt) || txt === '次' || txt === '次»' || txt === '»' || txt === '›' || txt === 'next';
         })
         .map(a => ({
           text: (a.textContent || '').trim(),
           href: a.href,
-          onclick: a.getAttribute('onclick'),
         }));
-      return candidates;
     });
-    console.log('   ページネーション候補:', JSON.stringify(paginationInfo.slice(0, 20)));
+    console.log('   ページネーション候補:', JSON.stringify(paginationInfo));
 
     // URLパターンを見つける（page=N を含む有効なURL）
     let pageUrlPattern = null;
