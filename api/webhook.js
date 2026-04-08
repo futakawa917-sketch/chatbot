@@ -497,6 +497,21 @@ function buildSubsidyContext(data) {
 }
 
 async function callClaude(messages, extraSystemContext = '') {
+  // 直近30メッセージのみに制限（古い会話履歴を切り捨て）
+  const trimmedMessages = messages.length > 30 ? messages.slice(-30) : messages;
+
+  // システムプロンプトを2つのブロックに分けてプロンプトキャッシュを有効化
+  const systemBlocks = [
+    {
+      type: 'text',
+      text: SYSTEM_PROMPT,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
+  if (extraSystemContext) {
+    systemBlocks.push({ type: 'text', text: extraSystemContext });
+  }
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -507,8 +522,8 @@ async function callClaude(messages, extraSystemContext = '') {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4000,
-      system: SYSTEM_PROMPT + extraSystemContext,
-      messages: messages,
+      system: systemBlocks,
+      messages: trimmedMessages,
     }),
   });
   const data = await res.json();
@@ -968,14 +983,16 @@ export default async function handler(req, res) {
 
     messages.push({ role: 'user', content: userText });
 
-    // ユーザーの会話から都道府県を簡易抽出
-    const allUserText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
-    const prefMatch = allUserText.match(/(北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都?|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県)/);
-    const prefecture = prefMatch ? prefMatch[1] : null;
-
-    // 関連する補助金データを取得
-    const relevantSubsidies = await getRelevantSubsidies(prefecture);
-    const subsidyContext = buildSubsidyContext(relevantSubsidies);
+    // 補助金データは会話が進んでから（ユーザー発言5回以降）のみ取得して高速化
+    const userMessageCount = messages.filter(m => m.role === 'user').length;
+    let subsidyContext = '';
+    if (userMessageCount >= 5) {
+      const allUserText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
+      const prefMatch = allUserText.match(/(北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都?|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県)/);
+      const prefecture = prefMatch ? prefMatch[1] : null;
+      const relevantSubsidies = await getRelevantSubsidies(prefecture);
+      subsidyContext = buildSubsidyContext(relevantSubsidies);
+    }
 
     const claudeResponse = await callClaude(messages, subsidyContext);
 
@@ -1024,7 +1041,8 @@ export default async function handler(req, res) {
 
     if (sim) {
       replyMessages.push(buildSimFlexMessage(sim));
-      await saveToLog(userId, displayName, sim, messages);
+      // ログ保存は非同期で実行（レスポンスをブロックしない）
+      saveToLog(userId, displayName, sim, messages).catch(() => {});
     }
 
     if (replyMessages.length > 5) replyMessages.splice(5);
