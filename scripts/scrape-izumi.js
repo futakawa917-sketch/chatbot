@@ -150,31 +150,23 @@ async function main() {
       console.log(`   新規 ${newCount}件、累計 ${allItems.length}件`);
 
       // 次ページボタンを探す
-      const nextSelectors = [
-        'a:has-text("次へ")',
-        'a:has-text("›")',
-        '.pagination .next a',
-        `a:has-text("${p + 1}")`,
-      ];
-
-      let clicked = false;
-      for (const sel of nextSelectors) {
-        try {
-          const nextBtn = await page.$(sel);
-          if (nextBtn) {
-            const isDisabled = await nextBtn.evaluate(el =>
-              el.classList.contains('disabled') ||
-              el.getAttribute('aria-disabled') === 'true' ||
-              el.style.display === 'none'
-            );
-            if (!isDisabled) {
-              await nextBtn.click();
-              await page.waitForLoadState('networkidle');
-              clicked = true;
-              break;
-            }
+      const clicked = await page.evaluate(() => {
+        // ページネーション内の全リンクを取得
+        const links = Array.from(document.querySelectorAll('a, button'));
+        // 「次」「›」「»」を含むリンク
+        for (const link of links) {
+          const txt = (link.textContent || '').trim();
+          if ((txt === '次»' || txt === '次>' || txt === '次' || txt === '›' || txt === '»' || txt === 'next' || txt.includes('次へ')) && !link.classList.contains('disabled')) {
+            link.click();
+            return true;
           }
-        } catch {}
+        }
+        return false;
+      });
+
+      if (clicked) {
+        await page.waitForTimeout(2000);
+        await page.waitForLoadState('networkidle').catch(() => {});
       }
 
       if (!clicked) {
