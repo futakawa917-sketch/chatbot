@@ -9,7 +9,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +33,7 @@ jobs:
           IZUMI_LOGIN_URL: ${{ secrets.IZUMI_LOGIN_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           UPLOAD_ENDPOINT: https://chatbot-tau-five-39.vercel.app/api/upload-izumi
-          MAX_PAGES: '50'
+          MAX_PAGES: '850'
         run: node scrape-izumi.js
 
       - name: Upload error artifacts if failed
