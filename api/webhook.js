@@ -1016,6 +1016,19 @@ async function processEvent(event) {
 
     const userText = event.message.text.trim();
 
+    // ユーザーの活動時刻を記録（配信時間最適化用）
+    const hourJst = (new Date().getUTCHours() + 9) % 24;
+    fetch(`${SUPABASE_URL}/rest/v1/user_activity_logs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ line_user_id: userId, hour_jst: hourJst }),
+    }).catch(() => {});
+
     // Zoom予約希望を検知（診断完了済みユーザー限定）
     if (/Zoom.*予約|予約.*Zoom|面談.*希望|Zoom面談.*予約/i.test(userText)) {
       const existingConv = await getConversation(userId);

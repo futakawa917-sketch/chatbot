@@ -154,6 +154,39 @@ async function hasBookedZoom(userId) {
   }
 }
 
+async function getUserBestHour(userId) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_activity_logs?line_user_id=eq.${userId}&select=hour_jst`,
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+
+    // 時間別カウント
+    const counts = {};
+    for (const r of data) {
+      counts[r.hour_jst] = (counts[r.hour_jst] || 0) + 1;
+    }
+    let best = null;
+    let max = 0;
+    for (const [h, c] of Object.entries(counts)) {
+      if (c > max) { max = c; best = parseInt(h); }
+    }
+    return best;
+  } catch {
+    return null;
+  }
+}
+
+function isWithinOptimalWindow(bestHour) {
+  if (bestHour == null) return true; // データがない場合は常に許可
+  const nowHourJst = (new Date().getUTCHours() + 9) % 24;
+  // 最適時間±2時間以内
+  const diff = Math.min(Math.abs(nowHourJst - bestHour), 24 - Math.abs(nowHourJst - bestHour));
+  return diff <= 2;
+}
+
 function buildQuickReplyForFollow() {
   return {
     items: [
@@ -307,6 +340,12 @@ export default async function handler(req, res) {
       const elapsed = (now - anchorTime) / (1000 * 60 * 60); // hours
 
       if (elapsed >= nextStep.delayHours) {
+        // ユーザーの最適時間帯チェック（±2時間以内なら配信、それ以外は次の機会まで保留）
+        const bestHour = await getUserBestHour(user.line_user_id);
+        if (bestHour != null && !isWithinOptimalWindow(bestHour)) {
+          continue; // 最適時間帯外なのでスキップ（次のcron実行を待つ）
+        }
+
         try {
           const quickReply = user.diagnosis_completed_at
             ? buildQuickReplyForCompleted()

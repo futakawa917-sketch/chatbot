@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>補助金HACK | 最大数百万円の補助金を3分診断 - 完全代行</title>
+<meta name="description" content="補助金・助成金の無料診断サービス。3分の質問に答えるだけで御社が受け取れる制度がわかります。事業計画書から申請書類まで全て代行。採択率92%。">
+<meta property="og:title" content="補助金HACK | 最大数百万円の補助金を3分診断">
+<meta property="og:description" content="3分の無料診断で御社が受け取れる補助金がわかる。事業計画書から申請まで全て代行。">
+<meta property="og:type" content="website">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #1e293b;
+    line-height: 1.7;
+    background: #fff;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%);
+    color: #fff;
+    padding: 80px 24px 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 50%, rgba(96,165,250,0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 30%, rgba(167,139,250,0.3) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .hero-content { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+  }
+  .hero h1 {
+    font-size: 36px;
+    font-weight: 900;
+    line-height: 1.4;
+    margin-bottom: 16px;
+    letter-spacing: -0.5px;
+  }
+  .hero h1 .highlight {
+    color: #fbbf24;
+    display: block;
+    font-size: 48px;
+    margin: 8px 0;
+  }
+  .hero-sub {
+    font-size: 16px;
+    opacity: 0.9;
+    margin-bottom: 32px;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: #fbbf24;
+    color: #1e40af;
+    padding: 18px 48px;
+    border-radius: 999px;
+    font-size: 18px;
+    font-weight: 800;
+    text-decoration: none;
+    box-shadow: 0 8px 24px rgba(251,191,36,0.4);
+    transition: all 0.2s;
+  }
+  .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(251,191,36,0.5); }
+  .cta-note {
+    margin-top: 16px;
+    font-size: 13px;
+    opacity: 0.85;
+  }
+
+  /* Section */
+  .section {
+    padding: 60px 24px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .section-title {
+    font-size: 26px;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 8px;
+    color: #0f172a;
+  }
+  .section-sub {
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+
+  /* Numbers */
+  .numbers {
+    background: #f1f5f9;
+    padding: 50px 24px;
+  }
+  .numbers-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .num-card {
+    background: #fff;
+    padding: 24px 16px;
+    border-radius: 16px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+  }
+  .num-value {
+    font-size: 36px;
+    font-weight: 900;
+    color: #2563eb;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .num-value span { font-size: 18px; }
+  .num-label { font-size: 12px; color: #64748b; }
+
+  /* Features */
+  .features {
+    background: #fff;
+  }
+  .feature {
+    display: flex;
+    gap: 20px;
+    padding: 24px;
+    background: #f8fafc;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+  .feature-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+  }
+  .feature-content h3 {
+    font-size: 16px;
+    margin-bottom: 6px;
+    color: #0f172a;
+  }
+  .feature-content p {
+    font-size: 13px;
+    color: #475569;
+  }
+
+  /* Steps */
+  .steps {
+    background: #f1f5f9;
+  }
+  .step {
+    background: #fff;
+    padding: 24px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+    position: relative;
+    padding-left: 80px;
+  }
+  .step-num {
+    position: absolute;
+    left: 24px;
+    top: 24px;
+    width: 40px;
+    height: 40px;
+    background: #2563eb;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+  }
+  .step h3 {
+    font-size: 16px;
+    margin-bottom: 6px;
+    color: #0f172a;
+  }
+  .step p {
+    font-size: 13px;
+    color: #475569;
+  }
+
+  /* Voice */
+  .voices {
+    background: #fff;
+  }
+  .voice {
+    background: #f8fafc;
+    padding: 20px 24px;
+    border-radius: 16px;
+    margin-bottom: 12px;
+    border-left: 4px solid #2563eb;
+  }
+  .voice-text {
+    font-size: 14px;
+    color: #1e293b;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .voice-name {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  /* FAQ */
+  .faq {
+    background: #f1f5f9;
+  }
+  .faq-item {
+    background: #fff;
+    padding: 20px 24px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+  .faq-q {
+    font-size: 14px;
+    font-weight: 700;
+    color: #2563eb;
+    margin-bottom: 8px;
+  }
+  .faq-q::before { content: 'Q. '; }
+  .faq-a {
+    font-size: 13px;
+    color: #475569;
+  }
+
+  /* Final CTA */
+  .final-cta {
+    background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%);
+    color: #fff;
+    padding: 60px 24px;
+    text-align: center;
+  }
+  .final-cta h2 {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+  .final-cta p {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 32px;
+  }
+
+  /* Footer */
+  .footer {
+    background: #0f172a;
+    color: #94a3b8;
+    padding: 32px 24px;
+    text-align: center;
+    font-size: 12px;
+  }
+  .footer a { color: #94a3b8; margin: 0 12px; text-decoration: none; }
+  .footer a:hover { color: #fff; }
+
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 28px; }
+    .hero h1 .highlight { font-size: 38px; }
+    .numbers-grid { grid-template-columns: 1fr; }
+    .num-value { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">補助金・助成金の無料診断</div>
+    <h1>
+      その補助金、<br>
+      <span class="highlight">最大数百万円</span>
+      取りこぼしてませんか？
+    </h1>
+    <p class="hero-sub">
+      3分の質問に答えるだけで、御社が受け取れる補助金・助成金がわかります。<br>
+      事業計画書から申請まで全て代行。お客様の手間はほぼゼロ。
+    </p>
+    <a href="https://line.me/R/ti/p/@補助金HACK" class="cta-btn">LINEで無料診断する</a>
+    <div class="cta-note">登録後すぐに診断スタート / 完全無料</div>
+  </div>
+</section>
+
+<!-- Numbers -->
+<section class="numbers">
+  <h2 class="section-title">数字で見る補助金HACK</h2>
+  <p class="section-sub">実績で選ばれています</p>
+  <div class="numbers-grid">
+    <div class="num-card">
+      <div class="num-value">500<span>社+</span></div>
+      <div class="num-label">支援実績</div>
+    </div>
+    <div class="num-card">
+      <div class="num-value">92<span>%</span></div>
+      <div class="num-label">採択率（業界平均60%）</div>
+    </div>
+    <div class="num-card">
+      <div class="num-value">3<span>分</span></div>
+      <div class="num-label">無料診断時間</div>
+    </div>
+  </div>
+</section>
+
+<!-- Problem -->
+<section class="section">
+  <h2 class="section-title">こんなお悩みありませんか？</h2>
+  <p class="section-sub">中小企業・個人事業主の95%が補助金を取りこぼしています</p>
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">😩</div>
+      <div class="feature-content">
+        <h3>補助金の種類が多すぎてわからない</h3>
+        <p>国・自治体・財団含め年間2万件以上。自分でリサーチする時間はない</p>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📝</div>
+      <div class="feature-content">
+        <h3>事業計画書を書く時間がない</h3>
+        <p>本業に集中したい。書類作成に何週間もかけられない</p>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">❌</div>
+      <div class="feature-content">
+        <h3>申請しても落ちるのが怖い</h3>
+        <p>業界平均の採択率は60%程度。間違ったやり方では時間の無駄になる</p>
+      </div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">💸</div>
+      <div class="feature-content">
+        <h3>取りこぼしている補助金が知りたい</h3>
+        <p>年間1兆円以上の補助金が申請されずに国に返還されている現実</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Steps -->
+<section class="steps">
+  <div class="section">
+    <h2 class="section-title">3ステップで完了</h2>
+    <p class="section-sub">難しい手続きは全てお任せください</p>
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>LINE友だち追加</h3>
+      <p>「補助金HACK」を友だち追加。すぐに無料診断スタート</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>3分の質問に答える</h3>
+      <p>会社情報・事業内容など、簡単な質問にお答えください。受け取れる補助金がわかります</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>無料Zoom面談 → 申請代行</h3>
+      <p>60分の無料面談で詳細をご説明。ご納得いただけたら申請代行スタート</p>
+    </div>
+  </div>
+</section>
+
+<!-- Voices -->
+<section class="section voices">
+  <h2 class="section-title">お客様の声</h2>
+  <p class="section-sub">実際にご利用いただいた事業者様の感想</p>
+  <div class="voice">
+    <div class="voice-text">「想定の倍以上の補助金が見つかりました。自分では絶対に見つけられなかった制度ばかりで、本当に頼んで良かったです」</div>
+    <div class="voice-name">製造業 50代男性</div>
+  </div>
+  <div class="voice">
+    <div class="voice-text">「事業計画書の作成から提出まで全部やってもらえて、本業に集中できました。30分のZoomで全てが決まりました」</div>
+    <div class="voice-name">飲食店オーナー 40代女性</div>
+  </div>
+  <div class="voice">
+    <div class="voice-text">「押し売り感ゼロで安心できました。ちゃんと弊社の状況を理解した上で最適な制度を提案してくれました」</div>
+    <div class="voice-name">IT業 30代男性</div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq">
+  <div class="section">
+    <h2 class="section-title">よくあるご質問</h2>
+    <div class="faq-item">
+      <div class="faq-q">無料診断とはどこまで無料ですか？</div>
+      <div class="faq-a">補助金診断、シミュレーション、Zoom面談まで全て無料です。実際に申請代行をご依頼いただく場合のみ、着手金10万円＋成果報酬15%が発生します。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">小規模な個人事業主でも利用できますか？</div>
+      <div class="faq-a">はい。むしろ小規模事業者向けの補助金は多数あります。従業員1名でも対象になる制度をご提案できます。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">「やりたいこと」が決まっていなくても大丈夫？</div>
+      <div class="faq-a">大丈夫です。雇用情報だけで該当する助成金もありますので、漠然とした状態でもご利用いただけます。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">不採択だった場合はどうなりますか？</div>
+      <div class="faq-a">着手金は返金されませんが、再申請のサポートを無償で行います。弊社の採択率は92%なので、ほとんどの場合採択されています。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">本業が忙しいのですが時間は取られますか？</div>
+      <div class="faq-a">事業計画書から申請書類まで全て弊社が代行しますので、お客様の手間はほぼゼロです。必要な情報のヒアリングとサインのみお願いいたします。</div>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<section class="final-cta">
+  <h2>まずは無料診断から</h2>
+  <p>3分で御社が受け取れる補助金がわかります</p>
+  <a href="https://line.me/R/ti/p/@補助金HACK" class="cta-btn">LINEで友だち追加して診断する</a>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div>© 2026 補助金HACK</div>
+  <div style="margin-top:12px;">
+    <a href="/terms.html">利用規約</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/tokushoho.html">特定商取引法に基づく表記</a>
+  </div>
+</footer>
+
+</body>
+</html>
