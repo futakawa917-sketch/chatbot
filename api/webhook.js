@@ -6,6 +6,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const GOOGLE_SHEET_WEBHOOK = process.env.GOOGLE_SHEET_WEBHOOK;
+const SALES_NOTIFY_USER_IDS = (process.env.SALES_NOTIFY_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
 const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した営業アドバイザー兼LINEコンシェルジュです。
 ユーザーの全メッセージに自然対応し、最終的にZoom面談予約に繋げます。押し売りはせず、信頼構築を優先。
@@ -538,6 +539,60 @@ async function showLoadingAnimation(userId, seconds = 30) {
   } catch (e) {}
 }
 
+async function pushToLine(userId, messages) {
+  try {
+    await fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({ to: userId, messages }),
+    });
+  } catch (e) {}
+}
+
+async function notifyToSales(type, info) {
+  if (SALES_NOTIFY_USER_IDS.length === 0) return;
+
+  let title = '';
+  let icon = '';
+  if (type === 'diagnosis_completed') {
+    title = '新規診断完了';
+    icon = '🎯';
+  } else if (type === 'zoom_request') {
+    title = 'Zoom予約希望';
+    icon = '🔥';
+  }
+
+  const lines = [
+    `${icon} ${title}`,
+    '',
+  ];
+  if (info.lineDisplayName) lines.push(`LINE名: ${info.lineDisplayName}`);
+  if (info.companyName) lines.push(`会社: ${info.companyName}`);
+  if (info.representative) lines.push(`代表: ${info.representative}`);
+  if (info.entityType) lines.push(`形態: ${info.entityType}`);
+  if (info.businessContent) lines.push(`事業: ${info.businessContent}`);
+  if (info.location) lines.push(`所在地: ${info.location}`);
+  if (info.employeesFull || info.employeesPart) {
+    lines.push(`従業員: 正社員${info.employeesFull || '?'} / アルバイト${info.employeesPart || '?'}`);
+  }
+  if (info.desiredUse) lines.push(`やりたいこと: ${info.desiredUse}`);
+  if (info.totalEstimated) lines.push(`想定受給額: 最大${info.totalEstimated}万円`);
+  if (info.subsidies) lines.push(`該当制度: ${info.subsidies}`);
+
+  lines.push('');
+  lines.push('▼ ダッシュボードで詳細確認');
+  lines.push('https://chatbot-tau-five-39.vercel.app/dashboard.html');
+
+  const text = lines.join('\n');
+
+  await Promise.all(SALES_NOTIFY_USER_IDS.map(uid =>
+    pushToLine(uid, [{ type: 'text', text }])
+  ));
+}
+
 function parseSimulation(text) {
   const match = text.match(/---SIMULATION_START---([\s\S]*?)---SIMULATION_END---/);
   if (!match) return null;
@@ -757,6 +812,22 @@ async function saveToLog(userId, displayName, sim, messages) {
       }),
     }).catch(() => {});
   }
+
+  // 営業チームに通知
+  const subsidies = sim?.results?.map(r => r.name).slice(0, 3).join(', ') || '';
+  await notifyToSales('diagnosis_completed', {
+    lineDisplayName: displayName,
+    companyName: extracted.company_name,
+    representative: extracted.representative,
+    entityType: extracted.entity_type,
+    businessContent: extracted.business_content,
+    location: extracted.location,
+    employeesFull: extracted.employees_full,
+    employeesPart: extracted.employees_part,
+    desiredUse: extracted.desired_use,
+    totalEstimated: sim?.totalEstimated,
+    subsidies,
+  });
 }
 
 async function getRawBody(req) {
@@ -820,6 +891,38 @@ export default async function handler(req, res) {
     if (event.type !== 'message' || event.message.type !== 'text') continue;
 
     const userText = event.message.text.trim();
+
+    // Zoom予約希望を検知（診断完了済みユーザー限定）
+    if (/Zoom.*予約|予約.*Zoom|面談.*希望|Zoom面談.*予約/i.test(userText)) {
+      const existingConv = await getConversation(userId);
+      if (existingConv?.diagnosis_completed_at) {
+        // 過去のconversation_logsから情報を取得して通知
+        try {
+          const logRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/conversation_logs?line_user_id=eq.${userId}&order=created_at.desc&limit=1`,
+            { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
+          );
+          const logs = await logRes.json();
+          const log = logs[0];
+          if (log) {
+            const subsidies = log.simulation_results?.results?.map(r => r.name).slice(0, 3).join(', ') || '';
+            await notifyToSales('zoom_request', {
+              lineDisplayName: log.line_display_name,
+              companyName: log.company_name,
+              representative: log.representative,
+              entityType: log.entity_type,
+              businessContent: log.business_content,
+              location: log.location,
+              employeesFull: log.employees_full,
+              employeesPart: log.employees_part,
+              desiredUse: log.desired_use,
+              totalEstimated: log.simulation_results?.totalEstimated,
+              subsidies,
+            });
+          }
+        } catch (e) {}
+      }
+    }
 
     // ローディングアニメーションを表示（考え中...）
     showLoadingAnimation(userId, 30);
