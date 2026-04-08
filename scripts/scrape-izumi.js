@@ -173,6 +173,10 @@ async function main() {
     if (numericLink) {
       pageUrlPattern = numericLink.href.replace(/page=\d+/, 'page=__PAGE__');
       console.log('   URLパターン:', pageUrlPattern);
+    } else {
+      // フォールバック：デフォルトURLパターンを使う
+      pageUrlPattern = 'https://j-izumi.com/search-subsidy?order=0&per_page=20&page=__PAGE__';
+      console.log('   URLパターン(デフォルト):', pageUrlPattern);
     }
 
     // 全ページ巡回
