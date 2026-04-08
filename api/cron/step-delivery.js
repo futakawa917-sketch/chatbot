@@ -141,17 +141,54 @@ const COMPLETED_STEPS = [
   },
 ];
 
-async function hasBookedZoom(userId) {
+// Zoom予約済ユーザー向けリマインド配信
+const ZOOM_REMINDER_STEPS = [
+  {
+    delayHours: 2,
+    text: 'Zoomご予約ありがとうございます！\n\n面談に向けて、以下をご準備いただけるとスムーズに進められます。\n\n・現在の事業状況がわかる資料（任意）\n・直近の決算書・確定申告書（任意）\n・補助金で実現したいことのメモ\n\n何かご不明点があればお気軽にメッセージください！',
+  },
+  {
+    delayHours: 24,
+    text: '昨日はZoomご予約ありがとうございました。\n\nZoom面談では、診断結果の詳細解説に加えて、申請までのスケジュール、採択率を上げるコツ、料金体系などをじっくりお話しします。\n\n事前に聞いておきたいことがあれば、いつでもメッセージくださいね！',
+  },
+  {
+    delayHours: 48,
+    text: '【Zoom面談まで間もなくです】\n\nお部屋・通信環境のチェックはお済みでしょうか？\n\nZoomは静かな場所での参加をおすすめします。マイク・カメラの動作確認もぜひ事前にお試しください。\n\n当日URLは別途ご案内しております！',
+  },
+  {
+    delayHours: 72,
+    text: '【補助金HACKです】\n\n間もなくZoom面談ですね。\n\n面談中に質問しておきたいことを今のうちにメモしておくと、当日効率的にお話しできます。\n\nよくある質問例:\n・申請までの期間は？\n・採択率はどのくらい？\n・うちの業界の事例は？\n・追加で活用できる制度は？\n\n当日お会いできるのを楽しみにしています！',
+  },
+  {
+    delayHours: 144, // 6日後（Zoom実施後想定）
+    text: '先日はZoom面談ありがとうございました！\n\nご検討状況はいかがでしょうか？\n\nもしご不明点やご質問が新たに出てきましたら、いつでもLINEでお声がけください。\n\n申請は早ければ早いほど締切に余裕を持って準備できますので、ご検討よろしくお願いいたします！',
+  },
+];
+
+async function getUserLatestStatus(userId) {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/conversation_logs?line_user_id=eq.${userId}&status=in.("Zoom予約済","Zoom実施済","契約","検討中","失注")&select=id&limit=1`,
+      `${SUPABASE_URL}/rest/v1/conversation_logs?line_user_id=eq.${userId}&order=updated_at.desc&limit=1&select=status,updated_at`,
       { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     const data = await res.json();
-    return Array.isArray(data) && data.length > 0;
+    return Array.isArray(data) ? data[0] : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function updateLastCategory(userId, category) {
+  await fetch(`${SUPABASE_URL}/rest/v1/line_conversations?line_user_id=eq.${userId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({ last_step_category: category, step_index: 0 }),
+  });
 }
 
 async function getUserBestHour(userId) {
@@ -315,22 +352,38 @@ export default async function handler(req, res) {
     const users = await usersRes.json();
 
     for (const user of users) {
-      const stepIdx = user.step_index || 0;
-      let steps, anchorTime;
+      let stepIdx = user.step_index || 0;
+      let steps, anchorTime, category;
 
-      if (user.diagnosis_completed_at) {
-        // 診断完了済みユーザー: Zoom予約以降のステータスなら配信停止
-        const booked = await hasBookedZoom(user.line_user_id);
-        if (booked) continue;
+      // 最新のステータスを取得
+      const latest = await getUserLatestStatus(user.line_user_id);
+      const status = latest?.status;
+      const statusUpdatedAt = latest?.updated_at;
 
+      // カテゴリ判定
+      if (status === 'Zoom予約済' || status === 'Zoom実施済') {
+        category = 'zoom_booked';
+        steps = ZOOM_REMINDER_STEPS;
+        anchorTime = new Date(statusUpdatedAt).getTime();
+      } else if (status === '契約' || status === '失注') {
+        // 契約済 or 失注はステップ配信停止
+        continue;
+      } else if (user.diagnosis_completed_at) {
+        category = 'diagnosis_completed';
         steps = COMPLETED_STEPS;
         anchorTime = new Date(user.diagnosis_completed_at).getTime();
       } else if (user.followed_at) {
-        // 友だち追加のみ・診断未完了のユーザー
+        category = 'follow';
         steps = FOLLOW_STEPS;
         anchorTime = new Date(user.followed_at).getTime();
       } else {
         continue;
+      }
+
+      // カテゴリが変わったら step_index をリセット
+      if (user.last_step_category !== category) {
+        await updateLastCategory(user.line_user_id, category);
+        stepIdx = 0;
       }
 
       // 次のステップが存在するかチェック
