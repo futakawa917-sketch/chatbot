@@ -467,6 +467,8 @@ function showDetail(id) {
     <div class="detail-section">
       <div class="detail-section-title">基本情報</div>
       <div class="detail-row"><span class="detail-label">会社名</span><span class="detail-value">${escapeHtml(d.company_name) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">電話</span><span class="detail-value">${escapeHtml(d.phone) || '-'}</span></div>
+      <div class="detail-row"><span class="detail-label">メール</span><span class="detail-value">${escapeHtml(d.email) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">代表者</span><span class="detail-value">${escapeHtml(d.representative) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">法人/個人</span><span class="detail-value">${escapeHtml(d.entity_type) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">設立</span><span class="detail-value">${escapeHtml(d.established) || '-'}</span></div>

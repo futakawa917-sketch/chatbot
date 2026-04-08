@@ -54,21 +54,24 @@ const SYSTEM_PROMPT = `あなたは日本の補助金・助成金に精通した
 
 【簡易モードの必須ヒアリング項目】（1つずつ聞く・順番厳守）
 1. 会社名または屋号名
-2. 代表者名
-3. 法人か個人事業主か
-4. 設立日
-5. 所在地
-6. 正社員の人数
-7. アルバイト・パート・契約社員の人数
-8. 雇用保険に加入しているか（はい/いいえ）
-9. 社会保険に加入しているか（はい/いいえ）
-10. インボイス登録の有無
-11. 補助金・助成金の申請経験（有りなら補助金名も）
-12. 事業内容
-13. やりたいこと（未定でもOK・なければスキップして即結果）
+2. 電話番号（連絡先確認のため）
+3. メールアドレス（連絡先確認のため）
+4. 代表者名
+5. 法人か個人事業主か
+6. 設立日
+7. 所在地
+8. 正社員の人数
+9. アルバイト・パート・契約社員の人数
+10. 雇用保険に加入しているか（はい/いいえ）
+11. 社会保険に加入しているか（はい/いいえ）
+12. インボイス登録の有無
+13. 補助金・助成金の申請経験（有りなら補助金名も）
+14. 事業内容
+15. やりたいこと（未定でもOK・なければスキップして即結果）
 
 ★ヒアリングのコツ：
-- 雇用情報（6〜9）は助成金の判定に必須なので、絶対に聞き漏らさない
+- 会社名の直後に電話番号・メアドを聞く（連絡先は早めに確保）
+- 雇用情報（8〜11）は助成金の判定に必須なので、絶対に聞き漏らさない
 - 「やりたいこと」が未定でも、上記情報が揃えば即シミュレーション結果を出す
 
 【詳細モードの追加ヒアリング】
@@ -572,6 +575,8 @@ async function notifyToSales(type, info) {
   if (info.lineDisplayName) lines.push(`LINE名: ${info.lineDisplayName}`);
   if (info.companyName) lines.push(`会社: ${info.companyName}`);
   if (info.representative) lines.push(`代表: ${info.representative}`);
+  if (info.phone) lines.push(`電話: ${info.phone}`);
+  if (info.email) lines.push(`メール: ${info.email}`);
   if (info.entityType) lines.push(`形態: ${info.entityType}`);
   if (info.businessContent) lines.push(`事業: ${info.businessContent}`);
   if (info.location) lines.push(`所在地: ${info.location}`);
@@ -715,11 +720,13 @@ async function extractStructuredInfo(messages) {
       .map(m => `${m.role === 'user' ? 'ユーザー' : 'ボット'}: ${m.content.replace(/---SIMULATION_START---[\s\S]*?---SIMULATION_END---/g, '[シミュレーション結果]')}`)
       .join('\n');
 
-    const extractPrompt = `以下の会話から事業者情報を抽出してJSON形式のみで返してください。説明文や\`\`\`は一切付けないこと。
+    const extractPrompt = `以下の会話から事業者情報を抽出してJSON形式のみで返してください。説明文やコードブロック記号は一切付けないこと。
 不明な項目はnullにしてください。
 
 抽出フィールド：
 - company_name: 会社名または屋号名
+- phone: 電話番号
+- email: メールアドレス
 - representative: 代表者名
 - business_type: 業種（製造業/サービス業/小売業など）
 - entity_type: 法人 or 個人事業主
@@ -770,6 +777,8 @@ async function saveToLog(userId, displayName, sim, messages) {
     simulation_results: sim,
     full_conversation: messages,
     company_name: extracted.company_name ?? null,
+    phone: extracted.phone ?? null,
+    email: extracted.email ?? null,
     representative: extracted.representative ?? null,
     business_type: extracted.business_type ?? null,
     entity_type: extracted.entity_type ?? null,
@@ -818,6 +827,8 @@ async function saveToLog(userId, displayName, sim, messages) {
   await notifyToSales('diagnosis_completed', {
     lineDisplayName: displayName,
     companyName: extracted.company_name,
+    phone: extracted.phone,
+    email: extracted.email,
     representative: extracted.representative,
     entityType: extracted.entity_type,
     businessContent: extracted.business_content,
@@ -909,6 +920,8 @@ export default async function handler(req, res) {
             await notifyToSales('zoom_request', {
               lineDisplayName: log.line_display_name,
               companyName: log.company_name,
+              phone: log.phone,
+              email: log.email,
               representative: log.representative,
               entityType: log.entity_type,
               businessContent: log.business_content,
