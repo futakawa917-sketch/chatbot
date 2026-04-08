@@ -522,6 +522,22 @@ async function replyToLine(replyToken, messages) {
   });
 }
 
+async function showLoadingAnimation(userId, seconds = 30) {
+  try {
+    await fetch('https://api.line.me/v2/bot/chat/loading/start', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        chatId: userId,
+        loadingSeconds: seconds,
+      }),
+    });
+  } catch (e) {}
+}
+
 function parseSimulation(text) {
   const match = text.match(/---SIMULATION_START---([\s\S]*?)---SIMULATION_END---/);
   if (!match) return null;
@@ -804,6 +820,9 @@ export default async function handler(req, res) {
     if (event.type !== 'message' || event.message.type !== 'text') continue;
 
     const userText = event.message.text.trim();
+
+    // ローディングアニメーションを表示（考え中...）
+    showLoadingAnimation(userId, 30);
 
     // 会話履歴を先に取得（プロフィールはキャッシュから）
     let conv = await getConversation(userId);
