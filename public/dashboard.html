@@ -652,6 +652,15 @@ async function updateStatus(id, status) {
     renderTable();
     const el = document.getElementById('statusSaved');
     if (el) { el.style.display = 'inline'; setTimeout(() => el.style.display = 'none', 2000); }
+
+    // Zoom実施済になったら結果報告通知をLINEに送信
+    if (status === 'Zoom実施済') {
+      fetch('/api/notify-zoom-done', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_id: id }),
+      }).catch(() => {});
+    }
   } catch (e) {}
 }
 

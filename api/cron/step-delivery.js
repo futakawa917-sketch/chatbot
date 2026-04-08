@@ -141,6 +141,34 @@ const COMPLETED_STEPS = [
   },
 ];
 
+// 途中離脱ユーザー向け配信（診断を始めたが完了していない）
+const ABANDONED_STEPS = [
+  {
+    delayHours: 24,
+    text: 'こんにちは、補助金HACKです。\n\n先日は診断にお答えいただきありがとうございました！\n\nあと少しで結果が出るところでしたが、お忙しくて止まってしまいましたか？\n\n続きから再開できますので、よろしければ「続きから」とメッセージくださいね。残り数問で結果が出ます！',
+  },
+  {
+    delayHours: 48,
+    text: '【診断の続きはいかがですか？】\n\n途中までお答えいただいた情報、まだ残っています。\n\n残り数問なので、3分もかかりません。\n「続きから」とメッセージいただければ、すぐ再開できます！',
+  },
+  {
+    delayHours: 72,
+    text: 'お疲れ様です。\n\n途中まで答えていただいた情報を元に、すでに該当しそうな補助金が見えてきています。\n\n結果を確認するには、あと少しだけ追加情報が必要です。\nお時間あるときに「続きから」とメッセージください！',
+  },
+  {
+    delayHours: 120, // Day 5
+    text: '先日の診断、もしお忘れでしたらすみません。\n\nリセットして最初からやり直すこともできます。\n「リセット」または「続きから」とメッセージください。\n\nもちろん、ご質問だけでも大丈夫です！',
+  },
+  {
+    delayHours: 168, // Day 7
+    text: 'お忙しい中失礼します。\n\n途中までお答えいただいた診断、もったいないなと思っております。\nあなたの事業状況なら、おそらく数百万円規模の補助金に該当する可能性が高いです。\n\nぜひ最後まで完了させて、結果をご確認ください。「続きから」と送るだけです！',
+  },
+  {
+    delayHours: 336, // Day 14
+    text: 'ご無沙汰しております。\n\n2週間前の診断、その後いかがでしょうか？\nもし内容を忘れてしまったら、リセットして最初からやり直すこともできます。\n\n「リセット」とメッセージくださいね！',
+  },
+];
+
 // Zoom予約済ユーザー向けリマインド配信
 const ZOOM_REMINDER_STEPS = [
   {
@@ -361,6 +389,8 @@ export default async function handler(req, res) {
       const statusUpdatedAt = latest?.updated_at;
 
       // カテゴリ判定
+      const userMessageCount = (user.messages || []).filter(m => m.role === 'user').length;
+
       if (status === 'Zoom予約済' || status === 'Zoom実施済') {
         category = 'zoom_booked';
         steps = ZOOM_REMINDER_STEPS;
@@ -372,6 +402,11 @@ export default async function handler(req, res) {
         category = 'diagnosis_completed';
         steps = COMPLETED_STEPS;
         anchorTime = new Date(user.diagnosis_completed_at).getTime();
+      } else if (user.followed_at && userMessageCount >= 3) {
+        // 診断を始めたが途中離脱
+        category = 'abandoned';
+        steps = ABANDONED_STEPS;
+        anchorTime = new Date(user.followed_at).getTime();
       } else if (user.followed_at) {
         category = 'follow';
         steps = FOLLOW_STEPS;

@@ -993,6 +993,33 @@ async function processEvent(event) {
     const userId = event.source?.userId;
     if (!userId) return;
 
+    // Postbackイベント処理（営業担当のステータス更新ボタン用）
+    if (event.type === 'postback') {
+      const data = new URLSearchParams(event.postback?.data || '');
+      const action = data.get('action');
+      if (action === 'update_status') {
+        const logId = data.get('log_id');
+        const status = data.get('status');
+        if (logId && status) {
+          await fetch(`${SUPABASE_URL}/rest/v1/conversation_logs?id=eq.${logId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
+          });
+          await replyToLine(event.replyToken, [{
+            type: 'text',
+            text: `✅ ステータスを「${status}」に更新しました！`,
+          }]);
+        }
+      }
+      return;
+    }
+
     if (event.type === 'follow') {
       // 友だち追加時：プロフィール取得＋DB記録＋あいさつ送信を並列実行
       const profile = await getLineProfile(userId);
