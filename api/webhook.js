@@ -290,7 +290,10 @@ const GREETING = `友だち登録ありがとうございます！
 下のボタンから診断方法を選んでください！
 
 ① サクッと簡易診断（3分）
-② じっくり詳細診断（5分）`;
+② じっくり詳細診断（5分）
+
+▼ プライバシーポリシー
+https://chatbot-tau-five-39.vercel.app/privacy.html`;
 
 function buildQuickReply(items) {
   return {
